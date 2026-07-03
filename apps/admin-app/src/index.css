@@ -1,0 +1,96 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+
+  /* Admin Brand Colors */
+  --color-brand-50: #fef6ee;
+  --color-brand-100: #fde9d3;
+  --color-brand-200: #facfa6;
+  --color-brand-300: #f6ae70;
+  --color-brand-400: #f08338;
+  --color-brand-500: #ec6617;
+  --color-brand-600: #dd4d0c;
+  --color-brand-700: #b73a0d;
+  --color-brand-800: #922f13;
+  --color-brand-900: #762913;
+
+  /* Dark Surface Palette */
+  --color-surface-900: #0a0a0f;
+  --color-surface-800: #111118;
+  --color-surface-700: #1a1a26;
+  --color-surface-600: #22222f;
+  --color-surface-500: #2c2c3d;
+  --color-surface-400: #38384f;
+
+  --color-border: rgba(255,255,255,0.06);
+  --color-border-hover: rgba(255,255,255,0.12);
+
+  --color-text-primary: #f1f1f8;
+  --color-text-secondary: #8e8ea8;
+  --color-text-muted: #5c5c72;
+
+  --radius-card: 1rem;
+  --radius-btn: 0.625rem;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  background-color: var(--color-surface-900);
+  color: var(--color-text-primary);
+  min-height: 100dvh;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--color-surface-400); border-radius: 99px; }
+::-webkit-scrollbar-thumb:hover { background: var(--color-surface-500); }
+
+/* Focus ring */
+:focus-visible { outline: 2px solid var(--color-brand-500); outline-offset: 2px; border-radius: 4px; }
+
+/* Table hover */
+.admin-table tr:hover td { background: rgba(255,255,255,0.025); }
+
+/* Glass card */
+.glass {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--color-border);
+  backdrop-filter: blur(12px);
+}
+
+/* Sidebar width variable */
+:root {
+  --sidebar-width: 260px;
+  --sidebar-collapsed-width: 72px;
+  --header-height: 64px;
+}
+
+/* Animation */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-pulse-slow { animation: pulse-slow 2.5s ease-in-out infinite; }
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  background: linear-gradient(90deg, var(--color-surface-700) 25%, var(--color-surface-600) 50%, var(--color-surface-700) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 0.5rem;
+}
