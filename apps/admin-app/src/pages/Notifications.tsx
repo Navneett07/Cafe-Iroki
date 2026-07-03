@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bell, Send } from 'lucide-react';
 import { supabase } from '../config/supabaseClient';
+import { useRealtimeInvalidate } from '../hooks/useRealtimeInvalidate';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { Button, Input, Textarea } from '../components/ui/Form';
 import { EmptyState } from '../components/ui/States';
@@ -41,6 +42,13 @@ const Notifications: React.FC = () => {
 
   const { data: notifications, refetch } = useQuery({ queryKey: ['notifications-admin'], queryFn: fetchNotifications });
 
+  // Live sent-history feed.
+  useRealtimeInvalidate({
+    channel: 'admin-notifications-page-live',
+    tables: ['notifications'],
+    queryKeys: [['notifications-admin']],
+  });
+
   const sendNotification = async () => {
     if (!title.trim() || !message.trim()) {
       showToast('Title and message are required', 'warning');
@@ -48,7 +56,8 @@ const Notifications: React.FC = () => {
     }
     setSending(true);
     try {
-      const { error } = await supabase.from('notifications').insert({ title, message, type });
+      // audience 'all' => delivered to every customer's realtime notification feed
+      const { error } = await supabase.from('notifications').insert({ title, message, type, audience: 'all' });
       if (error) throw error;
       showToast('Notification sent', 'success');
       setTitle(''); setMessage('');

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Calendar, List, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { supabase } from '../config/supabaseClient';
+import { useRealtimeInvalidate } from '../hooks/useRealtimeInvalidate';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { Button, Input } from '../components/ui/Form';
 import { TableSkeleton, EmptyState, ErrorState } from '../components/ui/States';
@@ -36,6 +37,13 @@ const Reservations: React.FC = () => {
   const [selected, setSelected] = useState<Reservation | null>(null);
   const { showToast } = useToast();
   const qc = useQueryClient();
+
+  // New requests and status changes stream in live.
+  useRealtimeInvalidate({
+    channel: 'admin-reservations-live',
+    tables: ['reservations'],
+    queryKeys: [['admin-reservations']],
+  });
 
   const { data: reservations, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-reservations', statusFilter, dateFilter],

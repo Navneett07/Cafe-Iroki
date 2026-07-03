@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Edit, Trash2, Search, Package } from 'lucide-react';
 import { supabase } from '../config/supabaseClient';
+import { useRealtimeInvalidate } from '../hooks/useRealtimeInvalidate';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { Button, Input, Select, Textarea } from '../components/ui/Form';
 import { TableSkeleton, EmptyState, ErrorState } from '../components/ui/States';
@@ -91,6 +92,13 @@ const Menu: React.FC = () => {
   const [formOpen, setFormOpen] = useState(false);
   const { showToast } = useToast();
   const qc = useQueryClient();
+
+  // Reflect menu edits made from other admin sessions live.
+  useRealtimeInvalidate({
+    channel: 'admin-menu-live',
+    tables: ['menu_items'],
+    queryKeys: [['menu-items-admin']],
+  });
 
   const { data: items, isLoading, isError, refetch } = useQuery({
     queryKey: ['menu-items-admin', search, catFilter],

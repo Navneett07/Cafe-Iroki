@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Search, RefreshCw, Eye, Printer } from 'lucide-react';
 import { supabase } from '../config/supabaseClient';
+import { useRealtimeInvalidate } from '../hooks/useRealtimeInvalidate';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { OrderStatusBadge, PaymentStatusBadge } from '../components/ui/StatusBadge';
 import { Button, Input, Select } from '../components/ui/Form';
@@ -64,6 +65,13 @@ const Orders: React.FC = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const { showToast } = useToast();
   const qc = useQueryClient();
+
+  // New orders and customer status changes stream in live.
+  useRealtimeInvalidate({
+    channel: 'admin-orders-live',
+    tables: ['orders', 'order_items'],
+    queryKeys: [['admin-orders']],
+  });
 
   const { data: orders, isLoading, isError, refetch } = useQuery({
     queryKey: ['admin-orders', statusFilter, search],

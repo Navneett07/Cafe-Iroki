@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useCart } from '../../context/CartContext';
 import { OrderDrawer } from '../../features/ordering/OrderDrawer';
+import { NotificationBell } from './NotificationBell';
 import { Menu, X, Sun, Moon, Volume2, VolumeX, ShoppingBag } from 'lucide-react';
 
 const NAV_LINKS = [
@@ -156,6 +157,9 @@ export const Navbar: React.FC = () => {
             >
               {theme === 'light' ? <Moon size={16} /> : <Sun size={16} />}
             </button>
+
+            {/* Realtime Notifications */}
+            <NotificationBell />
 
             {/* Shopping Cart Trigger */}
             <button

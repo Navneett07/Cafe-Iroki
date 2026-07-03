@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { CreditCard, RefreshCw } from 'lucide-react';
 import { supabase } from '../config/supabaseClient';
+import { useRealtimeInvalidate } from '../hooks/useRealtimeInvalidate';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { Button, Select } from '../components/ui/Form';
 import { TableSkeleton, EmptyState, ErrorState } from '../components/ui/States';
@@ -44,6 +45,13 @@ const Payments: React.FC = () => {
   const [refundAmount, setRefundAmount] = useState('');
   const { showToast } = useToast();
   const qc = useQueryClient();
+
+  // Payment/refund status changes stream in live.
+  useRealtimeInvalidate({
+    channel: 'admin-payments-live',
+    tables: ['orders'],
+    queryKeys: [['transactions']],
+  });
 
   const { data: transactions, isLoading, isError, refetch } = useQuery({
     queryKey: ['transactions', statusFilter],

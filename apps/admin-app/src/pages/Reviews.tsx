@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Star, CheckCircle, XCircle, Trash2 } from 'lucide-react';
 import { supabase } from '../config/supabaseClient';
+import { useRealtimeInvalidate } from '../hooks/useRealtimeInvalidate';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { Button } from '../components/ui/Form';
 import { EmptyState, ErrorState } from '../components/ui/States';
@@ -38,6 +39,13 @@ const Reviews: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<ReviewStatus | 'all'>('all');
   const { showToast } = useToast();
   const qc = useQueryClient();
+
+  // New reviews appear in the moderation queue live.
+  useRealtimeInvalidate({
+    channel: 'admin-reviews-live',
+    tables: ['reviews'],
+    queryKeys: [['reviews-admin']],
+  });
 
   const { data: reviews, isLoading, isError, refetch } = useQuery({
     queryKey: ['reviews-admin', statusFilter],

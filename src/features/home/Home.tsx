@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ThreeHero } from './ThreeHero';
+import { useRealtimeChannel } from '../../hooks/useRealtimeChannel';
 import { Reveal } from '../../components/Animation/Reveal';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -64,8 +65,7 @@ export const Home: React.FC = () => {
   }, []);
 
   // Fetch dynamic content from Supabase
-  useEffect(() => {
-    const loadHomeData = async () => {
+  const loadHomeData = useCallback(async () => {
       try {
         // 1. Fetch featured popular dishes
         const { data: dishesData } = await supabase
@@ -159,10 +159,16 @@ export const Home: React.FC = () => {
       } catch (err) {
         console.error('Failed loading home elements', err);
       }
-    };
-
-    loadHomeData();
   }, []);
+
+  useEffect(() => {
+    loadHomeData();
+  }, [loadHomeData]);
+
+  // Realtime: featured dishes, approved reviews and banner changes go live.
+  useRealtimeChannel({ channel: 'home-menu', table: 'menu_items', event: '*', onChange: loadHomeData, onResync: loadHomeData });
+  useRealtimeChannel({ channel: 'home-reviews', table: 'reviews', event: '*', onChange: loadHomeData });
+  useRealtimeChannel({ channel: 'home-banners', table: 'settings', event: '*', onChange: loadHomeData });
 
   const timelineSteps = [
     { time: '08:00 AM', title: 'Morning Brew Focus', desc: 'Sip on pour-overs or ceremonial matcha while working in our quiet designated workspace corners.' },

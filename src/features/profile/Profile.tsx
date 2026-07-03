@@ -1,7 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { supabase } from '../../config/supabaseClient';
+import { useRealtimeChannel } from '../../hooks/useRealtimeChannel';
 import { storageService } from '../../services/storageService';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
@@ -118,6 +119,47 @@ export const Profile: React.FC = () => {
 
     fetchProfileData();
   }, [user]);
+
+  // Realtime refetchers scoped to this user (RLS enforces ownership)
+  const refetchOrders = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('orders')
+      .select('*, order_items(*)')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+    setOrders(data || []);
+  }, [user]);
+
+  const refetchReservations = useCallback(async () => {
+    if (!user) return;
+    const { data } = await supabase
+      .from('reservations')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('date', { ascending: false });
+    setReservations(data || []);
+  }, [user]);
+
+  useRealtimeChannel({
+    channel: user ? `profile-orders-${user.id}` : 'profile-orders',
+    table: 'orders',
+    event: '*',
+    filter: user ? `user_id=eq.${user.id}` : undefined,
+    enabled: !!user,
+    onChange: refetchOrders,
+    onResync: refetchOrders,
+  });
+
+  useRealtimeChannel({
+    channel: user ? `profile-reservations-${user.id}` : 'profile-reservations',
+    table: 'reservations',
+    event: '*',
+    filter: user ? `user_id=eq.${user.id}` : undefined,
+    enabled: !!user,
+    onChange: refetchReservations,
+    onResync: refetchReservations,
+  });
 
   // Handle avatar upload triggers
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

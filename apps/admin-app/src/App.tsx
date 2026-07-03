@@ -2,6 +2,7 @@ import React, { lazy, Suspense } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AdminAuthProvider } from './context/AdminAuthContext';
+import { AdminNotificationProvider } from './context/AdminNotificationContext';
 import { ToastProvider } from './context/ToastContext';
 import { AdminAuthGuard } from './components/auth/AdminAuthGuard';
 
@@ -41,6 +42,7 @@ const App: React.FC = () => (
   <QueryClientProvider client={queryClient}>
     <AdminAuthProvider>
       <ToastProvider>
+        <AdminNotificationProvider>
         <HashRouter>
           <Suspense fallback={<PageLoader />}>
             <Routes>
@@ -67,6 +69,7 @@ const App: React.FC = () => (
             </Routes>
           </Suspense>
         </HashRouter>
+        </AdminNotificationProvider>
       </ToastProvider>
     </AdminAuthProvider>
   </QueryClientProvider>

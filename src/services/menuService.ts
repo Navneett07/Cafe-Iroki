@@ -11,6 +11,7 @@ const mapDbItemToMenuItem = (db: any): MenuItem => ({
   tags: db.tags || [],
   isVegetarian: db.is_vegetarian,
   isPopular: db.is_popular,
+  isInStock: db.is_in_stock ?? true,
 });
 
 export const menuService = {

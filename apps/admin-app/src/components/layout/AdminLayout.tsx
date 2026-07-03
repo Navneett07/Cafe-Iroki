@@ -8,6 +8,7 @@ import {
   Coffee, Menu as MenuIcon, X
 } from 'lucide-react';
 import { useAdminAuth } from '@/context/AdminAuthContext';
+import { NotificationBell } from './NotificationBell';
 
 const navItems = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/' },
@@ -200,7 +201,9 @@ export const AdminHeader: React.FC<HeaderProps> = ({ collapsed, onMobileMenuTogg
       <MenuIcon size={18} />
     </button>
     <h1 className="text-base font-semibold text-[--color-text-primary] truncate">{title}</h1>
-    <div className="ml-auto flex items-center gap-2" />
+    <div className="ml-auto flex items-center gap-2">
+      <NotificationBell />
+    </div>
   </header>
 );
 

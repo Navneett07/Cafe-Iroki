@@ -3,6 +3,7 @@ import { HashRouter as Router, Routes, Route, useLocation } from 'react-router-d
 import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider, useToast } from './context/ToastContext';
+import { NotificationProvider } from './context/NotificationContext';
 import { Navbar } from './components/Layout/Navbar';
 import { Footer } from './components/Layout/Footer';
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -76,6 +77,7 @@ export const App: React.FC = () => {
         <AuthProvider>
           <CartProvider>
             <ToastProvider>
+              <NotificationProvider>
               <LiveNotifier />
               <ScrollToTop />
               <div className="flex flex-col min-h-screen bg-bg-primary text-text-primary transition-colors duration-300">
@@ -122,6 +124,7 @@ export const App: React.FC = () => {
                 </main>
                 <Footer />
               </div>
+              </NotificationProvider>
             </ToastProvider>
           </CartProvider>
         </AuthProvider>

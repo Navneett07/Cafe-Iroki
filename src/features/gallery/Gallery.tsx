@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { Modal } from '../../components/ui/Modal';
 import { Reveal } from '../../components/Animation/Reveal';
 import { Maximize2, Sparkles } from 'lucide-react';
 import { supabase } from '../../config/supabaseClient';
+import { useRealtimeChannel } from '../../hooks/useRealtimeChannel';
 
 interface GalleryItem {
   id: string;
@@ -28,37 +29,46 @@ export const Gallery: React.FC = () => {
   const [activeImage, setActiveImage] = useState<GalleryItem | null>(null);
 
   // Fetch gallery images from Supabase
-  useEffect(() => {
-    const fetchGallery = async () => {
-      setIsLoading(true);
-      try {
-        const { data, error } = await supabase
-          .from('gallery_images')
-          .select('*')
-          .order('created_at', { ascending: true });
+  const fetchGallery = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('gallery_images')
+        .select('*')
+        .order('created_at', { ascending: true });
 
-        if (error) {
-          throw error;
-        }
-
-        const items: GalleryItem[] = (data || []).map((db: any) => ({
-          id: db.id,
-          category: db.category,
-          title: db.title,
-          desc: db.description,
-          image: db.image_url,
-          span: db.span_config || 'md:col-span-1 md:row-span-1',
-        }));
-
-        setGalleryItems(items);
-      } catch (err) {
-        console.error('Error fetching gallery images from Supabase database:', err);
-      } finally {
-        setIsLoading(false);
+      if (error) {
+        throw error;
       }
-    };
-    fetchGallery();
+
+      const items: GalleryItem[] = (data || []).map((db: any) => ({
+        id: db.id,
+        category: db.category,
+        title: db.title,
+        desc: db.description,
+        image: db.image_url,
+        span: db.span_config || 'md:col-span-1 md:row-span-1',
+      }));
+
+      setGalleryItems(items);
+    } catch (err) {
+      console.error('Error fetching gallery images from Supabase database:', err);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchGallery();
+  }, [fetchGallery]);
+
+  // Realtime: new uploads / removals appear instantly (public read RLS).
+  useRealtimeChannel({
+    channel: 'gallery-images-public',
+    table: 'gallery_images',
+    event: '*',
+    onChange: fetchGallery,
+    onResync: fetchGallery,
+  });
 
   const filteredItems = useMemo(() => {
     return galleryItems.filter(

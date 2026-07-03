@@ -1,8 +1,9 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import type { MenuItem, OrderItem, Coupon } from '../types';
 import { CHARGES } from '../constants';
 import { supabase } from '../config/supabaseClient';
 import { useAuth } from './AuthContext';
+import { useRealtimeChannel } from '../hooks/useRealtimeChannel';
 
 interface CartContextProps {
   cartItems: OrderItem[];
@@ -33,48 +34,69 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
 
   // 1. Sync cart/favorites from database when user updates
-  useEffect(() => {
+  const loadUserData = useCallback(async () => {
     if (!user) {
       setCartItems([]);
       setFavorites([]);
       return;
     }
+    try {
+      // Pull cart
+      const { data: cartData } = await supabase
+        .from('cart_items')
+        .select('*, menu_items(name, price)')
+        .eq('user_id', user.id);
 
-    const loadUserData = async () => {
-      try {
-        // Pull cart
-        const { data: cartData } = await supabase
-          .from('cart_items')
-          .select('*, menu_items(name, price)')
-          .eq('user_id', user.id);
-
-        if (cartData) {
-          setCartItems(
-            cartData.map((c: any) => ({
-              menuItemId: c.menu_item_id,
-              name: c.menu_items?.name || '',
-              price: Number(c.menu_items?.price || 0),
-              quantity: c.quantity,
-            }))
-          );
-        }
-
-        // Pull favorites
-        const { data: favsData } = await supabase
-          .from('favorite_items')
-          .select('menu_item_id')
-          .eq('user_id', user.id);
-
-        if (favsData) {
-          setFavorites(favsData.map((f: any) => f.menu_item_id));
-        }
-      } catch (err) {
-        console.error('Failed to sync user cart metrics:', err);
+      if (cartData) {
+        setCartItems(
+          cartData.map((c: any) => ({
+            menuItemId: c.menu_item_id,
+            name: c.menu_items?.name || '',
+            price: Number(c.menu_items?.price || 0),
+            quantity: c.quantity,
+          }))
+        );
       }
-    };
 
-    loadUserData();
+      // Pull favorites
+      const { data: favsData } = await supabase
+        .from('favorite_items')
+        .select('menu_item_id')
+        .eq('user_id', user.id);
+
+      if (favsData) {
+        setFavorites(favsData.map((f: any) => f.menu_item_id));
+      }
+    } catch (err) {
+      console.error('Failed to sync user cart metrics:', err);
+    }
   }, [user]);
+
+  useEffect(() => {
+    loadUserData();
+  }, [loadUserData]);
+
+  // 1b. Live cross-device sync: reflect cart/favorite changes made on other
+  // devices/tabs. RLS restricts these streams to the user's own rows.
+  useRealtimeChannel({
+    channel: user ? `cart-sync-${user.id}` : 'cart-sync',
+    table: 'cart_items',
+    event: '*',
+    filter: user ? `user_id=eq.${user.id}` : undefined,
+    enabled: !!user,
+    onChange: loadUserData,
+    onResync: loadUserData,
+  });
+
+  useRealtimeChannel({
+    channel: user ? `favorites-sync-${user.id}` : 'favorites-sync',
+    table: 'favorite_items',
+    event: '*',
+    filter: user ? `user_id=eq.${user.id}` : undefined,
+    enabled: !!user,
+    onChange: loadUserData,
+    onResync: loadUserData,
+  });
 
   // 2. Operations
   const addItem = async (item: MenuItem, quantity = 1) => {

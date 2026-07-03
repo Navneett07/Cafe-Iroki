@@ -9,6 +9,7 @@ import {
   TrendingUp, Clock, Star, AlertTriangle
 } from 'lucide-react';
 import { supabase } from '../config/supabaseClient';
+import { useRealtimeInvalidate } from '../hooks/useRealtimeInvalidate';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { KPICard } from '../components/ui/KPICard';
 import { OrderStatusBadge } from '../components/ui/StatusBadge';
@@ -120,6 +121,13 @@ const Dashboard: React.FC = () => {
   const statsQ = useQuery({ queryKey: ['dashboard-stats'], queryFn: fetchDashboardStats, refetchInterval: 30000 });
   const revenueQ = useQuery({ queryKey: ['revenue-chart'], queryFn: fetchRevenueChart, refetchInterval: 60000 });
   const ordersQ = useQuery({ queryKey: ['recent-orders-dashboard'], queryFn: fetchRecentOrders, refetchInterval: 15000 });
+
+  // Live KPIs: any order / reservation / review / menu change refreshes the dashboard instantly.
+  useRealtimeInvalidate({
+    channel: 'admin-dashboard-live',
+    tables: ['orders', 'order_items', 'reservations', 'reviews', 'menu_items'],
+    queryKeys: [['dashboard-stats'], ['revenue-chart'], ['recent-orders-dashboard']],
+  });
 
   const stats = statsQ.data;
   const chartData = revenueQ.data ?? [];

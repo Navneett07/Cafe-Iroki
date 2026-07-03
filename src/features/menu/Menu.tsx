@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { menuService } from '../../services/menuService';
 import { useCart } from '../../context/CartContext';
 import { useToast } from '../../context/ToastContext';
+import { useRealtimeChannel } from '../../hooks/useRealtimeChannel';
 import type { MenuItem } from '../../types';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
@@ -31,21 +32,30 @@ export const Menu: React.FC = () => {
   const { addItem, toggleFavorite, isFavorite } = useCart();
   const { showToast } = useToast();
 
-  useEffect(() => {
-    const fetchMenu = async () => {
-      setIsLoading(true);
-      try {
-        const menuData = await menuService.getMenuItems();
-        setItems(menuData);
-      } catch (err) {
-        console.error('Error fetching menu items', err);
-        showToast('Failed to load menu. Please retry.', 'error');
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    fetchMenu();
+  const fetchMenu = useCallback(async () => {
+    try {
+      const menuData = await menuService.getMenuItems();
+      setItems(menuData);
+    } catch (err) {
+      console.error('Error fetching menu items', err);
+      showToast('Failed to load menu. Please retry.', 'error');
+    } finally {
+      setIsLoading(false);
+    }
   }, [showToast]);
+
+  useEffect(() => {
+    fetchMenu();
+  }, [fetchMenu]);
+
+  // Realtime: admin add/remove/price/stock changes reflect instantly (public read RLS).
+  useRealtimeChannel({
+    channel: 'menu-items-public',
+    table: 'menu_items',
+    event: '*',
+    onChange: fetchMenu,
+    onResync: fetchMenu,
+  });
 
   // Memoized filtering logic
   const filteredItems = useMemo(() => {
@@ -150,6 +160,7 @@ export const Menu: React.FC = () => {
             {filteredItems.map((item) => {
               const currentQty = quantities[item.id] || 1;
               const isFavoriteItem = isFavorite(item.id);
+              const soldOut = item.isInStock === false;
 
               return (
                 <Reveal key={item.id} direction="up" duration={0.6}>
@@ -163,10 +174,19 @@ export const Menu: React.FC = () => {
                       <img
                         src={item.image}
                         alt={item.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+                        className={`w-full h-full object-cover group-hover:scale-105 transition-transform duration-700 ${soldOut ? 'grayscale opacity-60' : ''}`}
                         loading="lazy"
                       />
-                      
+
+                      {/* Sold out overlay (realtime stock) */}
+                      {soldOut && (
+                        <span className="absolute inset-0 flex items-center justify-center bg-brand-dark/50">
+                          <span className="bg-rose-600 text-white text-[10px] uppercase tracking-widest font-extrabold px-3 py-1.5 rounded shadow-premium-sm">
+                            Sold Out
+                          </span>
+                        </span>
+                      )}
+
                       {/* Popular ribbon */}
                       {item.isPopular && (
                         <span className="absolute top-3 left-3 bg-accent-gold text-bg-primary text-[9px] uppercase tracking-widest font-extrabold px-2.5 py-1 rounded shadow-premium-sm flex items-center gap-1">
@@ -227,38 +247,44 @@ export const Menu: React.FC = () => {
                           ₹{item.price}
                         </span>
 
-                        <div className="flex items-center gap-3">
-                          {/* Qty controls */}
-                          <div className="flex items-center gap-2 border border-border-subtle rounded px-1.5 py-0.5 bg-bg-primary text-xs">
-                            <button
-                              type="button"
-                              onClick={() => handleQtyChange(item.id, currentQty - 1)}
-                              className="text-text-secondary hover:text-text-primary px-1 font-bold cursor-pointer"
-                              aria-label={`Decrease quantity of ${item.name}`}
-                            >
-                              -
-                            </button>
-                            <span className="w-4 text-center font-bold">{currentQty}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleQtyChange(item.id, currentQty + 1)}
-                              className="text-text-secondary hover:text-text-primary px-1 font-bold cursor-pointer"
-                              aria-label={`Increase quantity of ${item.name}`}
-                            >
-                              +
-                            </button>
-                          </div>
+                        {soldOut ? (
+                          <span className="text-[10px] uppercase tracking-widest font-bold text-rose-600">
+                            Unavailable
+                          </span>
+                        ) : (
+                          <div className="flex items-center gap-3">
+                            {/* Qty controls */}
+                            <div className="flex items-center gap-2 border border-border-subtle rounded px-1.5 py-0.5 bg-bg-primary text-xs">
+                              <button
+                                type="button"
+                                onClick={() => handleQtyChange(item.id, currentQty - 1)}
+                                className="text-text-secondary hover:text-text-primary px-1 font-bold cursor-pointer"
+                                aria-label={`Decrease quantity of ${item.name}`}
+                              >
+                                -
+                              </button>
+                              <span className="w-4 text-center font-bold">{currentQty}</span>
+                              <button
+                                type="button"
+                                onClick={() => handleQtyChange(item.id, currentQty + 1)}
+                                className="text-text-secondary hover:text-text-primary px-1 font-bold cursor-pointer"
+                                aria-label={`Increase quantity of ${item.name}`}
+                              >
+                                +
+                              </button>
+                            </div>
 
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="gap-1.5 font-bold"
-                            onClick={() => handleAddToCart(item)}
-                          >
-                            <ShoppingCart size={12} />
-                            <span>Add</span>
-                          </Button>
-                        </div>
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="gap-1.5 font-bold"
+                              onClick={() => handleAddToCart(item)}
+                            >
+                              <ShoppingCart size={12} />
+                              <span>Add</span>
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </Card>

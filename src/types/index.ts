@@ -8,6 +8,17 @@ export interface MenuItem {
   tags: string[];
   isVegetarian: boolean;
   isPopular?: boolean;
+  isInStock?: boolean;
+}
+
+export interface AppNotification {
+  id: string;
+  title: string;
+  message: string;
+  type: string;
+  isRead: boolean;
+  audience: 'user' | 'admin' | 'all';
+  createdAt: string;
 }
 
 export interface Review {

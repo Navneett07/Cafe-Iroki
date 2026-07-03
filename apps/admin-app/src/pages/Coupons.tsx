@@ -5,6 +5,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Plus, Edit, Trash2, Tag } from 'lucide-react';
 import { supabase } from '../config/supabaseClient';
+import { useRealtimeInvalidate } from '../hooks/useRealtimeInvalidate';
 import { AdminLayout } from '../components/layout/AdminLayout';
 import { Button, Input, Select, Textarea } from '../components/ui/Form';
 import { TableSkeleton, EmptyState, ErrorState } from '../components/ui/States';
@@ -63,6 +64,13 @@ const Coupons: React.FC = () => {
   const [editId, setEditId] = useState<string | null>(null);
   const { showToast } = useToast();
   const qc = useQueryClient();
+
+  // Reflect coupon create/update/delete from other admin sessions live.
+  useRealtimeInvalidate({
+    channel: 'admin-coupons-live',
+    tables: ['coupons'],
+    queryKeys: [['coupons-admin']],
+  });
 
   const { data: coupons, isLoading, isError, refetch } = useQuery({ queryKey: ['coupons-admin'], queryFn: fetchCoupons });
 
