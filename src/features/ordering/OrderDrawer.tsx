@@ -28,15 +28,15 @@ export const OrderDrawer: React.FC<OrderDrawerProps> = ({ isOpen, onClose, onChe
   const [couponCode, setCouponCode] = useState('');
   const [couponError, setCouponError] = useState<string | null>(null);
 
-  const handleApplyCoupon = (e: React.FormEvent) => {
+  const handleApplyCoupon = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!couponCode.trim()) return;
     
-    const error = applyCoupon(couponCode);
+    setCouponError(null);
+    const error = await applyCoupon(couponCode);
     if (error) {
       setCouponError(error);
     } else {
-      setCouponError(null);
       setCouponCode('');
     }
   };

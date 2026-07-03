@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { MenuItem, OrderItem, Coupon } from '../types';
-import { CHARGES, MOCK_COUPONS } from '../constants';
+import { CHARGES } from '../constants';
+import { supabase } from '../config/supabaseClient';
 
 interface CartContextProps {
   cartItems: OrderItem[];
@@ -15,7 +16,7 @@ interface CartContextProps {
   removeItem: (itemId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   clearCart: () => void;
-  applyCoupon: (code: string) => string | null; // Returns error message or null if successful
+  applyCoupon: (code: string) => Promise<string | null>; // Asynchronous DB verification
   removeCoupon: () => void;
   toggleFavorite: (itemId: string) => void;
   isFavorite: (itemId: string) => boolean;
@@ -27,26 +28,6 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [cartItems, setCartItems] = useState<OrderItem[]>([]);
   const [favorites, setFavorites] = useState<string[]>([]);
   const [appliedCoupon, setAppliedCoupon] = useState<Coupon | null>(null);
-
-  // Load cart and favorites from localStorage
-  useEffect(() => {
-    const savedCart = localStorage.getItem('iroki_cart');
-    const savedFavorites = localStorage.getItem('iroki_favorites');
-    if (savedCart) setCartItems(JSON.parse(savedCart));
-    if (savedFavorites) setFavorites(JSON.parse(savedFavorites));
-  }, []);
-
-  // Sync cart changes to storage
-  const saveCart = (items: OrderItem[]) => {
-    setCartItems(items);
-    localStorage.setItem('iroki_cart', JSON.stringify(items));
-  };
-
-  // Sync favorites changes to storage
-  const saveFavorites = (favs: string[]) => {
-    setFavorites(favs);
-    localStorage.setItem('iroki_favorites', JSON.stringify(favs));
-  };
 
   const addItem = (item: MenuItem, quantity = 1) => {
     const existingIndex = cartItems.findIndex((ci) => ci.menuItemId === item.id);
@@ -62,12 +43,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         quantity,
       });
     }
-    saveCart(updated);
+    setCartItems(updated);
   };
 
   const removeItem = (itemId: string) => {
     const updated = cartItems.filter((ci) => ci.menuItemId !== itemId);
-    saveCart(updated);
+    setCartItems(updated);
   };
 
   const updateQuantity = (itemId: string, quantity: number) => {
@@ -78,27 +59,52 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const updated = cartItems.map((ci) =>
       ci.menuItemId === itemId ? { ...ci, quantity } : ci
     );
-    saveCart(updated);
+    setCartItems(updated);
   };
 
   const clearCart = () => {
-    saveCart([]);
+    setCartItems([]);
     setAppliedCoupon(null);
   };
 
-  const applyCoupon = (code: string): string | null => {
-    const coupon = MOCK_COUPONS.find((c) => c.code.toUpperCase() === code.trim().toUpperCase());
-    
-    if (!coupon) {
-      return 'Invalid coupon code.';
-    }
+  const applyCoupon = async (code: string): Promise<string | null> => {
+    try {
+      const { data, error } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', code.trim().toUpperCase())
+        .eq('is_active', true)
+        .gte('expiry_date', new Date().toISOString().split('T')[0])
+        .maybeSingle();
 
-    if (subtotal < coupon.minOrderValue) {
-      return `Coupon requires a minimum order subtotal of ₹${coupon.minOrderValue}.`;
-    }
+      if (error || !data) {
+        return 'Invalid or expired coupon code.';
+      }
 
-    setAppliedCoupon(coupon);
-    return null;
+      if (subtotal < Number(data.min_order_value)) {
+        return `Coupon requires a minimum order subtotal of ₹${data.min_order_value}.`;
+      }
+
+      // Convert fixed discounts to relative percentages for compatibility with calculate hooks
+      const val = Number(data.value);
+      const discountPercentage = data.discount_type === 'percentage' 
+        ? val 
+        : (val / subtotal) * 100;
+
+      setAppliedCoupon({
+        code: data.code,
+        discountPercentage: Math.min(100, discountPercentage),
+        minOrderValue: Number(data.min_order_value),
+        description: data.discount_type === 'percentage' 
+          ? `${val}% off` 
+          : `₹${val} off`,
+      });
+
+      return null;
+    } catch (err) {
+      console.error('Failed to validate coupon via Supabase API', err);
+      return 'Failed to validate coupon.';
+    }
   };
 
   const removeCoupon = () => {
@@ -113,7 +119,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } else {
       updated.push(itemId);
     }
-    saveFavorites(updated);
+    setFavorites(updated);
   };
 
   const isFavorite = (itemId: string) => {

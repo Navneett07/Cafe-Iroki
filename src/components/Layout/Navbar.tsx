@@ -22,10 +22,9 @@ export const Navbar: React.FC = () => {
   const { cartItems } = useCart();
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  // Initialize Theme from localStorage / matchMedia
+  // Initialize Theme from matchMedia
   useEffect(() => {
-    const savedTheme = localStorage.getItem('iroki_theme');
-    if (savedTheme === 'dark' || (!savedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+    if (window.matchMedia('(prefers-color-scheme: dark)').matches) {
       setTheme('dark');
       document.documentElement.classList.add('dark');
     } else {
@@ -76,11 +75,9 @@ export const Navbar: React.FC = () => {
     if (theme === 'light') {
       setTheme('dark');
       document.documentElement.classList.add('dark');
-      localStorage.setItem('iroki_theme', 'dark');
     } else {
       setTheme('light');
       document.documentElement.classList.remove('dark');
-      localStorage.setItem('iroki_theme', 'light');
     }
   };
 
