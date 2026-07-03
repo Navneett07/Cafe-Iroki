@@ -7,6 +7,7 @@ import { Navbar } from './components/Layout/Navbar';
 import { Footer } from './components/Layout/Footer';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { SkeletonCard } from './components/ui/Skeleton';
+import { ProtectedRoute } from './components/ProtectedRoute';
 
 // Route Lazy Loading & Code Splitting
 const Home = lazy(() => import('./features/home/Home'));
@@ -15,6 +16,16 @@ const Reserve = lazy(() => import('./features/reservation/Reserve'));
 const Gallery = lazy(() => import('./features/gallery/Gallery'));
 const Checkout = lazy(() => import('./features/ordering/Checkout'));
 const TrackOrder = lazy(() => import('./features/ordering/TrackOrder'));
+
+// Auth Pages Code Splitting
+const Login = lazy(() => import('./features/auth/Login'));
+const Register = lazy(() => import('./features/auth/Register'));
+const ForgotPassword = lazy(() => import('./features/auth/ForgotPassword'));
+const ResetPassword = lazy(() => import('./features/auth/ResetPassword'));
+const EmailVerification = lazy(() => import('./features/auth/EmailVerification'));
+const Unauthorized = lazy(() => import('./features/auth/ErrorPages').then((m) => ({ default: m.Unauthorized })));
+const Forbidden = lazy(() => import('./features/auth/ErrorPages').then((m) => ({ default: m.Forbidden })));
+const SessionExpired = lazy(() => import('./features/auth/ErrorPages').then((m) => ({ default: m.SessionExpired })));
 
 // Auto Scroll To Top on Route Changes
 const ScrollToTop: React.FC = () => {
@@ -39,7 +50,6 @@ const LiveNotifier: React.FC = () => {
       'Someone just ordered a Spicy Tofu Ramen bowl!'
     ];
 
-    // Fire first notify after 10s, then periodically
     const delayTimer = setTimeout(() => {
       showToast(alertMessages[0], 'info', 5000);
     }, 10000);
@@ -47,7 +57,7 @@ const LiveNotifier: React.FC = () => {
     const interval = setInterval(() => {
       const idx = Math.floor(Math.random() * alertMessages.length);
       showToast(alertMessages[idx], 'info', 5000);
-    }, 45000); // Fire every 45 seconds
+    }, 45000);
 
     return () => {
       clearTimeout(delayTimer);
@@ -65,22 +75,14 @@ export const App: React.FC = () => {
         <AuthProvider>
           <CartProvider>
             <ToastProvider>
-              {/* Background notification simulator */}
               <LiveNotifier />
-              
-              {/* Scroll controller */}
               <ScrollToTop />
-
-              {/* Shell Layout wrapper */}
               <div className="flex flex-col min-h-screen bg-bg-primary text-text-primary transition-colors duration-300">
                 <Navbar />
-
-                {/* Main Suspended views */}
                 <main className="flex-1">
                   <Suspense
                     fallback={
                       <div className="pt-28 pb-24 max-w-7xl mx-auto px-6 md:px-12">
-                        {/* Elegant loading placeholder */}
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                           <SkeletonCard />
                           <SkeletonCard />
@@ -90,17 +92,32 @@ export const App: React.FC = () => {
                     }
                   >
                     <Routes>
+                      {/* Public routes */}
                       <Route path="/" element={<Home />} />
                       <Route path="/menu" element={<Menu />} />
-                      <Route path="/reserve" element={<Reserve />} />
                       <Route path="/gallery" element={<Gallery />} />
-                      <Route path="/checkout" element={<Checkout />} />
                       <Route path="/track/:orderId" element={<TrackOrder />} />
+
+                      {/* Guest-only auth routes */}
+                      <Route path="/login" element={<ProtectedRoute guestOnly><Login /></ProtectedRoute>} />
+                      <Route path="/register" element={<ProtectedRoute guestOnly><Register /></ProtectedRoute>} />
+                      <Route path="/forgot-password" element={<ProtectedRoute guestOnly><ForgotPassword /></ProtectedRoute>} />
+                      
+                      {/* Regular auth handling paths */}
+                      <Route path="/reset-password" element={<ResetPassword />} />
+                      <Route path="/verify-email" element={<EmailVerification />} />
+                      <Route path="/unauthorized" element={<Unauthorized />} />
+                      <Route path="/forbidden" element={<Forbidden />} />
+                      <Route path="/session-expired" element={<SessionExpired />} />
+
+                      {/* Protected Customer Routes */}
+                      <Route path="/reserve" element={<ProtectedRoute allowedRoles={['customer', 'admin']}><Reserve /></ProtectedRoute>} />
+                      <Route path="/checkout" element={<ProtectedRoute allowedRoles={['customer', 'admin']}><Checkout /></ProtectedRoute>} />
+
                       <Route path="*" element={<Home />} />
                     </Routes>
                   </Suspense>
                 </main>
-
                 <Footer />
               </div>
             </ToastProvider>
@@ -110,4 +127,5 @@ export const App: React.FC = () => {
     </ErrorBoundary>
   );
 };
+
 export default App;

@@ -196,9 +196,6 @@ export const Admin: React.FC = () => {
                 Unlock Dashboard
               </Button>
             </form>
-            <div className="text-center text-[10px] text-text-secondary/70 bg-bg-secondary p-3 rounded">
-              <span>Demo Login: <strong>admin@cafeiroki.com</strong> / <strong>irokiadmin</strong></span>
-            </div>
           </Card>
         </Reveal>
       </div>
