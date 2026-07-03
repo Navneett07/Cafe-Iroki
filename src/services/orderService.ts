@@ -18,8 +18,8 @@ const mapDbOrderToOrder = (dbOrder: any): Order => {
       notes: dbOrder.delivery_address?.notes || '',
     },
     paymentMethod: dbOrder.payment_method as 'upi' | 'card' | 'cod',
-    paymentStatus: dbOrder.payment_status as 'pending' | 'paid',
-    orderStatus: dbOrder.order_status as 'received' | 'preparing' | 'out-for-delivery' | 'delivered',
+    paymentStatus: dbOrder.payment_status as 'pending' | 'paid' | 'failed' | 'refunded',
+    orderStatus: dbOrder.order_status as 'received' | 'confirmed' | 'preparing' | 'ready' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'refunded',
     createdAt: dbOrder.created_at,
     estimatedDeliveryTime: '30 mins',
     items: dbItems.map((it: any) => ({
@@ -68,150 +68,78 @@ export const orderService = {
   },
 
   /**
-   * Submits a new customer food order to Supabase with server-side validation.
+   * Submits a new customer food order invoking checkout Supabase Edge Function.
    */
   async createOrder(
     input: Omit<Order, 'id' | 'createdAt' | 'estimatedDeliveryTime' | 'orderStatus' | 'paymentStatus'>,
     couponCode?: string
   ): Promise<Order> {
-    // 1. Get current logged-in auth user
-    const { data: { session } } = await supabase.auth.getSession();
-    
-    // 2. Fetch actual menu item prices from Supabase
-    const menuItemIds = input.items.map((it) => it.menuItemId);
-    const { data: menuDbItems, error: menuErr } = await supabase
-      .from('menu_items')
-      .select('id, price')
-      .in('id', menuItemIds);
+    const payload = {
+      items: input.items.map((it) => ({
+        menuItemId: it.menuItemId,
+        quantity: it.quantity,
+      })),
+      couponCode,
+      deliveryAddress: input.deliveryAddress,
+      paymentMethod: input.paymentMethod,
+    };
 
-    if (menuErr || !menuDbItems) {
-      throw new Error('Verification failed: Unable to fetch menu prices.');
-    }
-
-    const priceMap = new Map<string, number>();
-    menuDbItems.forEach((item: any) => {
-      priceMap.set(item.id, Number(item.price));
+    const { data, error } = await supabase.functions.invoke('checkout', {
+      body: payload,
     });
 
-    // 3. Recalculate subtotal
-    let verifiedSubtotal = 0;
-    const verifiedItems = input.items.map((it) => {
-      const dbPrice = priceMap.get(it.menuItemId) ?? it.price;
-      verifiedSubtotal += dbPrice * it.quantity;
-      return {
-        ...it,
-        price: dbPrice,
-      };
-    });
-
-    // 4. Validate coupon
-    let verifiedDiscount = 0;
-    if (couponCode) {
-      const { data: couponData } = await supabase
-        .from('coupons')
-        .select('*')
-        .eq('code', couponCode.trim().toUpperCase())
-        .eq('is_active', true)
-        .gte('expiry_date', new Date().toISOString().split('T')[0])
-        .maybeSingle();
-
-      if (couponData && verifiedSubtotal >= Number(couponData.min_order_value)) {
-        const val = Number(couponData.value);
-        if (couponData.discount_type === 'percentage') {
-          verifiedDiscount = (verifiedSubtotal * val) / 100;
-        } else {
-          verifiedDiscount = val;
-        }
-      }
-    }
-
-    // 5. Calculate taxes and delivery charge
-    const taxableAmount = Math.max(0, verifiedSubtotal - verifiedDiscount);
-    const verifiedGst = taxableAmount * 0.05; // 5% GST
-    const verifiedDelivery = verifiedSubtotal === 0 || taxableAmount >= 500 ? 0 : 50; // Free delivery over ₹500
-    const verifiedTotal = taxableAmount + verifiedGst + verifiedDelivery;
-
-    // 6. Insert parent order record
-    const { data: orderData, error: orderError } = await supabase
-      .from('orders')
-      .insert({
-        user_id: session?.user?.id || null,
-        order_status: 'received',
-        subtotal: verifiedSubtotal,
-        discount: verifiedDiscount,
-        gst: verifiedGst,
-        delivery_charge: verifiedDelivery,
-        total: verifiedTotal,
-        delivery_address: input.deliveryAddress,
-        payment_method: input.paymentMethod,
-        payment_status: input.paymentMethod === 'cod' ? 'pending' : 'paid',
-      })
-      .select()
-      .single();
-
-    if (orderError) {
-      console.error('Error creating order record', orderError);
-      throw orderError;
-    }
-
-    // 7. Insert list items
-    const itemsToInsert = verifiedItems.map((it) => ({
-      order_id: orderData.id,
-      menu_item_id: it.menuItemId,
-      name: it.name,
-      quantity: it.quantity,
-      price: it.price,
-    }));
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(itemsToInsert);
-
-    if (itemsError) {
-      console.error('Error creating order items', itemsError);
-      // Attempt rollback order if items fail
-      await supabase.from('orders').delete().eq('id', orderData.id);
-      throw itemsError;
+    if (error || !data || data.error) {
+      throw new Error(error?.message || data?.error || 'Failed to place order via checkout function.');
     }
 
     return {
       ...input,
-      subtotal: verifiedSubtotal,
-      discount: verifiedDiscount,
-      gst: verifiedGst,
-      deliveryCharge: verifiedDelivery,
-      total: verifiedTotal,
-      items: verifiedItems,
-      id: orderData.id,
+      subtotal: data.subtotal,
+      discount: data.discount,
+      gst: data.gst,
+      deliveryCharge: data.deliveryCharge,
+      total: data.total,
+      id: data.orderId,
       orderStatus: 'received',
-      paymentStatus: orderData.payment_status as 'pending' | 'paid',
-      createdAt: orderData.created_at,
+      paymentStatus: input.paymentMethod === 'cod' ? 'pending' : 'paid',
+      createdAt: new Date().toISOString(),
       estimatedDeliveryTime: '30 mins',
     };
   },
 
   /**
-   * Updates an order's milestone status (Admin view) on Supabase.
+   * Updates an order's milestone status (Admin view) invoking admin-orders Supabase Edge Function.
    */
   async updateOrderStatus(id: string, status: Order['orderStatus']): Promise<Order | null> {
-    const paymentStatus = status === 'delivered' ? 'paid' : undefined;
-    const updatePayload: any = { order_status: status };
-    if (paymentStatus) {
-      updatePayload.payment_status = paymentStatus;
+    const action = status === 'refunded' ? 'refund' : 'update_status';
+    
+    const { data, error } = await supabase.functions.invoke('admin-orders', {
+      body: {
+        action,
+        orderId: id,
+        status,
+      },
+    });
+
+    if (error || !data || data.error) {
+      throw new Error(error?.message || data?.error || 'Failed to update order status.');
     }
 
-    const { data, error } = await supabase
-      .from('orders')
-      .update(updatePayload)
-      .eq('id', id)
-      .select('*, order_items(*)')
-      .single();
+    return this.getOrderById(id);
+  },
 
-    if (error) {
-      console.error('Error updating order status', error);
-      throw error;
+  /**
+   * Generates a plain-text billing receipt invoking invoice Supabase Edge Function.
+   */
+  async getInvoiceText(orderId: string): Promise<string> {
+    const { data, error } = await supabase.functions.invoke(`invoice?orderId=${orderId}`, {
+      method: 'GET',
+    });
+
+    if (error || !data || data.error) {
+      throw new Error(error?.message || data?.error || 'Failed to generate invoice receipt.');
     }
 
-    return data ? mapDbOrderToOrder(data) : null;
+    return data.invoice;
   }
 };

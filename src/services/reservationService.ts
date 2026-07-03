@@ -34,38 +34,43 @@ export const reservationService = {
   },
 
   /**
-   * Creates a new table reservation on Supabase.
+   * Creates a new table reservation invoking reservations Supabase Edge Function.
    */
   async createReservation(input: Omit<Reservation, 'id' | 'status'>): Promise<Reservation> {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data, error } = await supabase.functions.invoke('reservations', {
+      body: {
+        action: 'create',
+        ...input,
+      },
+    });
 
-    const { data, error } = await supabase
-      .from('reservations')
-      .insert({
-        user_id: session?.user?.id || null,
-        guest_name: input.guestName,
-        email: input.email,
-        phone: input.phone,
-        date: input.date,
-        time: input.time,
-        guests: input.guests,
-        location: input.location,
-        special_requests: input.specialRequests,
-        status: 'pending',
-      })
-      .select()
-      .single();
-
-    if (error) {
-      console.error('Error inserting reservation', error);
-      throw error;
+    if (error || !data || data.error) {
+      throw new Error(error?.message || data?.error || 'Failed to create reservation.');
     }
 
-    return mapDbResToReservation(data);
+    return mapDbResToReservation(data.reservation);
   },
 
   /**
-   * Updates reservation status (Admin action) on Supabase.
+   * Cancels a reservation invoking reservations Supabase Edge Function.
+   */
+  async cancelReservation(id: string): Promise<Reservation> {
+    const { data, error } = await supabase.functions.invoke('reservations', {
+      body: {
+        action: 'cancel',
+        reservationId: id,
+      },
+    });
+
+    if (error || !data || data.error) {
+      throw new Error(error?.message || data?.error || 'Failed to cancel reservation.');
+    }
+
+    return mapDbResToReservation(data.reservation);
+  },
+
+  /**
+   * Updates reservation status (Admin action) directly on Supabase.
    */
   async updateReservationStatus(id: string, status: Reservation['status']): Promise<Reservation | null> {
     const { data, error } = await supabase

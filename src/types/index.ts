@@ -56,7 +56,7 @@ export interface Order {
     notes?: string;
   };
   paymentMethod: 'upi' | 'card' | 'cod';
-  paymentStatus: 'pending' | 'paid';
+  paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   orderStatus: 'received' | 'confirmed' | 'preparing' | 'ready' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'refunded';
   createdAt: string;
   estimatedDeliveryTime: string; // ISO or relative minutes
