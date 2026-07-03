@@ -1,6 +1,5 @@
 import { supabase } from '../config/supabaseClient';
 import type { MenuItem } from '../types';
-import { MENU_ITEMS } from '../data/menu';
 
 const mapDbItemToMenuItem = (db: any): MenuItem => ({
   id: db.id,
@@ -16,150 +15,55 @@ const mapDbItemToMenuItem = (db: any): MenuItem => ({
 
 export const menuService = {
   /**
-   * Fetches all menu items from Supabase. Falls back to static menu items if Supabase is unconfigured or fails.
+   * Fetches all menu items from Supabase.
    */
   async getMenuItems(): Promise<MenuItem[]> {
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('*')
+      .order('name', { ascending: true });
 
-      // Safe check for placeholders or unconfigured credentials
-      if (
-        !supabaseUrl || 
-        !supabaseAnonKey || 
-        supabaseUrl.includes('placeholder') || 
-        supabaseAnonKey.includes('placeholder')
-      ) {
-        console.warn('Supabase is unconfigured or uses placeholders. Using local static menu items fallback.');
-        return [...MENU_ITEMS];
-      }
-
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) {
-        console.error('Supabase query error. Falling back to local static menu items:', error);
-        return [...MENU_ITEMS];
-      }
-
-      // If categories/items are empty, seed them automatically
-      if (!data || data.length === 0) {
-        console.info('Database menu_items table is empty. Auto-seeding static menu items...');
-        await this.seedCategoriesAndItems();
-        return [...MENU_ITEMS];
-      }
-
-      return data.map(mapDbItemToMenuItem);
-    } catch (err) {
-      console.error('Failed to communicate with Supabase database. Falling back to local menu items:', err);
-      return [...MENU_ITEMS];
+    if (error) {
+      console.error('Error fetching menu items from Supabase', error);
+      throw error;
     }
+
+    return (data || []).map(mapDbItemToMenuItem);
   },
 
   /**
-   * Fetches a single menu item by ID from Supabase with fallback.
+   * Fetches a single menu item by ID from Supabase.
    */
   async getMenuItemById(id: string): Promise<MenuItem | null> {
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!supabaseUrl || supabaseUrl.includes('placeholder')) {
-        return MENU_ITEMS.find((m) => m.id === id) || null;
-      }
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
 
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (error || !data) {
-        // Fallback search locally
-        return MENU_ITEMS.find((m) => m.id === id) || null;
-      }
-
-      return mapDbItemToMenuItem(data);
-    } catch (err) {
-      return MENU_ITEMS.find((m) => m.id === id) || null;
+    if (error) {
+      console.error('Error fetching menu item by ID from Supabase', error);
+      throw error;
     }
+
+    return data ? mapDbItemToMenuItem(data) : null;
   },
 
   /**
    * Fetches menu items belonging to a specific category.
    */
   async getMenuItemsByCategory(category: MenuItem['category']): Promise<MenuItem[]> {
-    try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!supabaseUrl || supabaseUrl.includes('placeholder')) {
-        return MENU_ITEMS.filter((m) => m.category === category);
-      }
+    const { data, error } = await supabase
+      .from('menu_items')
+      .select('*')
+      .eq('category_slug', category);
 
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('*')
-        .eq('category_slug', category);
-
-      if (error) {
-        return MENU_ITEMS.filter((m) => m.category === category);
-      }
-
-      return (data || []).map(mapDbItemToMenuItem);
-    } catch (err) {
-      return MENU_ITEMS.filter((m) => m.category === category);
+    if (error) {
+      console.error('Error fetching menu items by category from Supabase', error);
+      throw error;
     }
-  },
 
-  /**
-   * Helper function to seed categories and items into Supabase.
-   */
-  async seedCategoriesAndItems(): Promise<void> {
-    try {
-      const uniqueCats = Array.from(new Set(MENU_ITEMS.map((item) => item.category)));
-      
-      const categoriesToInsert = uniqueCats.map((cat) => ({
-        name: cat.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' '),
-        slug: cat,
-        description: `Premium ${cat} choices at Cafe Iroki`,
-        is_active: true,
-      }));
-
-      // Seed categories (upsert based on unique slug)
-      const { error: catError } = await supabase
-        .from('categories')
-        .upsert(categoriesToInsert, { onConflict: 'slug' });
-
-      if (catError) {
-        console.error('Seeding categories failed:', catError);
-        return;
-      }
-
-      // Seed menu items
-      const itemsToInsert = MENU_ITEMS.map((item) => ({
-        id: item.id,
-        category_slug: item.category,
-        name: item.name,
-        description: item.description,
-        price: item.price,
-        image_url: item.image,
-        is_vegetarian: item.isVegetarian,
-        is_popular: item.isPopular || false,
-        is_in_stock: true,
-        tags: item.tags,
-      }));
-
-      const { error: itemError } = await supabase
-        .from('menu_items')
-        .upsert(itemsToInsert, { onConflict: 'id' });
-
-      if (itemError) {
-        console.error('Seeding menu items failed:', itemError);
-      } else {
-        console.info('Successfully seeded categories and menu items on Supabase PostgreSQL!');
-      }
-    } catch (err) {
-      console.error('Seeding process encountered an exception:', err);
-    }
+    return (data || []).map(mapDbItemToMenuItem);
   },
 
   /**

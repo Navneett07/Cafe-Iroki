@@ -1,8 +1,8 @@
-import React, { useState, useMemo } from 'react';
-import { Card } from '../../components/ui/Card';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Modal } from '../../components/ui/Modal';
 import { Reveal } from '../../components/Animation/Reveal';
 import { Maximize2, Sparkles } from 'lucide-react';
+import { supabase } from '../../config/supabaseClient';
 
 interface GalleryItem {
   id: string;
@@ -10,7 +10,7 @@ interface GalleryItem {
   title: string;
   desc: string;
   image: string;
-  span?: string; // Masonry grid span configuration
+  span?: string;
 }
 
 const CATEGORIES = [
@@ -21,82 +21,50 @@ const CATEGORIES = [
   { value: 'events', label: 'Events & Culture' },
 ];
 
-const GALLERY_ITEMS: GalleryItem[] = [
-  {
-    id: 'gal-1',
-    category: 'coffee',
-    title: 'Ceremonial Matcha Preparation',
-    desc: 'Authentic Kyoto Uji green tea whisked using bamboo tools.',
-    image: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=800&auto=format&fit=crop&q=80',
-    span: 'md:col-span-2 md:row-span-2',
-  },
-  {
-    id: 'gal-2',
-    category: 'food',
-    title: 'Signature UFO Burger',
-    desc: 'Our sealed-edge New York CLT, capturing juices without mess.',
-    image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=800&auto=format&fit=crop&q=80',
-    span: 'md:col-span-1 md:row-span-1',
-  },
-  {
-    id: 'gal-3',
-    category: 'interior',
-    title: 'Minimalist Reading Corner',
-    desc: 'Peaceful Japanese wooden aesthetics combined with reading lights.',
-    image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=800&auto=format&fit=crop&q=80',
-    span: 'md:col-span-1 md:row-span-2',
-  },
-  {
-    id: 'gal-4',
-    category: 'food',
-    title: 'Golden Taiyaki Waffles',
-    desc: 'Freshly baked fish-shaped waffles filled with custard.',
-    image: 'https://images.unsplash.com/photo-1582772643801-b8d9600d8be9?w=800&auto=format&fit=crop&q=80',
-    span: 'md:col-span-1 md:row-span-1',
-  },
-  {
-    id: 'gal-5',
-    category: 'coffee',
-    title: 'Slow Bar V-60 Drip',
-    desc: 'Single origin pour-over coffee extracted with laboratory precision.',
-    image: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&auto=format&fit=crop&q=80',
-    span: 'md:col-span-2 md:row-span-1',
-  },
-  {
-    id: 'gal-6',
-    category: 'interior',
-    title: 'Zen Workspace Desks',
-    desc: 'Fitted workstations with charging sockets and high-speed WiFi.',
-    image: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=800&auto=format&fit=crop&q=80',
-    span: 'md:col-span-1 md:row-span-1',
-  },
-  {
-    id: 'gal-7',
-    category: 'events',
-    title: 'Pour Over Cupping Workshop',
-    desc: 'Nagpur coffee enthusiasts testing roast profiles.',
-    image: 'https://images.unsplash.com/photo-1447933601403-0c6688de566e?w=800&auto=format&fit=crop&q=80',
-    span: 'md:col-span-2 md:row-span-2',
-  },
-  {
-    id: 'gal-8',
-    category: 'events',
-    title: 'Late Night Acoustical Vibe',
-    desc: 'Earthy sounds filling our cozy Japanese-themed hall.',
-    image: 'https://images.unsplash.com/photo-1511192336575-5a79af67a629?w=800&auto=format&fit=crop&q=80',
-    span: 'md:col-span-1 md:row-span-1',
-  }
-];
-
 export const Gallery: React.FC = () => {
+  const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [activeImage, setActiveImage] = useState<GalleryItem | null>(null);
 
+  // Fetch gallery images from Supabase
+  useEffect(() => {
+    const fetchGallery = async () => {
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('gallery_images')
+          .select('*')
+          .order('created_at', { ascending: true });
+
+        if (error) {
+          throw error;
+        }
+
+        const items: GalleryItem[] = (data || []).map((db: any) => ({
+          id: db.id,
+          category: db.category,
+          title: db.title,
+          desc: db.description,
+          image: db.image_url,
+          span: db.span_config || 'md:col-span-1 md:row-span-1',
+        }));
+
+        setGalleryItems(items);
+      } catch (err) {
+        console.error('Error fetching gallery images from Supabase database:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchGallery();
+  }, []);
+
   const filteredItems = useMemo(() => {
-    return GALLERY_ITEMS.filter(
+    return galleryItems.filter(
       (item) => selectedCategory === 'all' || item.category === selectedCategory
     );
-  }, [selectedCategory]);
+  }, [galleryItems, selectedCategory]);
 
   return (
     <div className="pt-28 pb-24 bg-bg-primary text-text-primary min-h-screen">
@@ -132,79 +100,89 @@ export const Gallery: React.FC = () => {
           ))}
         </div>
 
-        {/* Pinterest Masonry Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[240px]">
-          {filteredItems.map((item, idx) => (
-            <Reveal
-              key={item.id}
-              direction="up"
-              delay={idx * 0.05}
-              className={`h-full ${item.span || 'md:col-span-1 md:row-span-1'}`}
-            >
-              <Card
-                variant="outline"
-                onClick={() => setActiveImage(item)}
-                className="group relative h-full w-full p-0 overflow-hidden cursor-pointer border border-border-subtle/50 shadow-premium-sm hover:shadow-premium-md hover:border-accent-gold/40 rounded-md"
+        {/* Pinterest Masonry Grid / Loading skeleton */}
+        {isLoading ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[240px]">
+            <div className="bg-bg-secondary animate-pulse rounded-md md:col-span-2 md:row-span-2" />
+            <div className="bg-bg-secondary animate-pulse rounded-md md:col-span-1 md:row-span-1" />
+            <div className="bg-bg-secondary animate-pulse rounded-md md:col-span-1 md:row-span-2" />
+            <div className="bg-bg-secondary animate-pulse rounded-md md:col-span-1 md:row-span-1" />
+            <div className="bg-bg-secondary animate-pulse rounded-md md:col-span-2 md:row-span-1" />
+          </div>
+        ) : filteredItems.length === 0 ? (
+          <div className="text-center py-20">
+            <p className="text-text-secondary text-sm">No images found in the gallery collection.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 auto-rows-[240px]">
+            {filteredItems.map((item, idx) => (
+              <Reveal
+                key={item.id}
+                direction="up"
+                delay={idx * 0.05}
+                className={item.span || 'md:col-span-1 md:row-span-1'}
               >
-                {/* Image element */}
-                <img
-                  src={item.image}
-                  alt={item.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
-                  loading="lazy"
-                />
-
-                {/* Dark Hover Reveal Sheet */}
-                <div className="absolute inset-0 bg-brand-dark/60 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-end p-5 text-white z-10">
-                  <div className="translate-y-2 group-hover:translate-y-0 transition-transform duration-500 flex flex-col gap-1.5">
-                    <span className="text-[9px] uppercase tracking-widest text-accent-gold font-bold">
+                <div 
+                  className="group relative w-full h-full rounded-md overflow-hidden cursor-pointer border border-border-subtle/30 shadow-premium-sm"
+                  onClick={() => setActiveImage(item)}
+                >
+                  <img
+                    src={item.image}
+                    alt={item.title}
+                    className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                    loading="lazy"
+                  />
+                  {/* Subtle dark gradient overlay */}
+                  <div className="absolute inset-0 bg-gradient-to-t from-brand-dark/90 via-brand-dark/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10 flex flex-col justify-end p-4 text-white" />
+                  
+                  <div className="absolute bottom-4 left-4 right-4 z-20 translate-y-4 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-300 text-white pointer-events-none">
+                    <span className="text-[10px] uppercase font-bold tracking-widest text-accent-gold flex items-center gap-1">
+                      <Sparkles size={10} />
                       {item.category}
                     </span>
-                    <h3 className="font-serif font-bold text-base leading-tight">
-                      {item.title}
-                    </h3>
-                    <p className="text-[10px] text-white/70 leading-relaxed max-w-xs">
-                      {item.desc}
-                    </p>
+                    <h3 className="text-sm font-serif font-bold mt-1 truncate">{item.title}</h3>
+                    <p className="text-[11px] text-slate-300 mt-0.5 line-clamp-2 leading-relaxed">{item.desc}</p>
                   </div>
-                  <Maximize2 size={16} className="absolute top-4 right-4 text-white/60 group-hover:text-white transition-colors" />
+
+                  <div className="absolute top-4 right-4 z-20 opacity-0 group-hover:opacity-100 transition-all duration-300 p-2 rounded-full bg-brand-dark/40 text-white backdrop-blur-sm border border-white/10">
+                    <Maximize2 size={12} />
+                  </div>
                 </div>
-              </Card>
-            </Reveal>
-          ))}
-        </div>
-
-      </div>
-
-      {/* Lightbox Modal overlay */}
-      <Modal
-        isOpen={!!activeImage}
-        onClose={() => setActiveImage(null)}
-        title={activeImage?.title}
-        size="lg"
-      >
-        {activeImage && (
-          <div className="flex flex-col gap-4">
-            <div className="rounded overflow-hidden border border-border-subtle max-h-[60vh]">
-              <img
-                src={activeImage.image}
-                alt={activeImage.title}
-                className="w-full h-full object-contain mx-auto"
-              />
-            </div>
-            <div className="flex flex-col gap-1 px-1">
-              <span className="text-xs uppercase tracking-widest text-brand-primary font-bold flex items-center gap-1">
-                <Sparkles size={12} className="text-accent-gold" />
-                <span>{activeImage.category}</span>
-              </span>
-              <p className="text-sm text-text-secondary leading-relaxed mt-1">
-                {activeImage.desc}
-              </p>
-            </div>
+              </Reveal>
+            ))}
           </div>
         )}
-      </Modal>
+
+        {/* Zoom Lightbox Modal */}
+        <Modal
+          isOpen={!!activeImage}
+          onClose={() => setActiveImage(null)}
+          title={activeImage?.title || 'Gallery View'}
+        >
+          {activeImage && (
+            <div className="space-y-4 text-center">
+              <div className="rounded-md overflow-hidden border border-border-subtle max-h-[70vh] bg-black">
+                <img
+                  src={activeImage.image}
+                  alt={activeImage.title}
+                  className="w-full h-auto max-h-[70vh] object-contain mx-auto"
+                />
+              </div>
+              <div className="space-y-1 text-left px-2">
+                <span className="text-[10px] uppercase font-bold tracking-widest text-brand-primary">
+                  {activeImage.category}
+                </span>
+                <p className="text-xs text-text-secondary leading-relaxed">
+                  {activeImage.desc}
+                </p>
+              </div>
+            </div>
+          )}
+        </Modal>
+
+      </div>
     </div>
   );
 };
+
 export default Gallery;
