@@ -16,6 +16,7 @@ const Reserve = lazy(() => import('./features/reservation/Reserve'));
 const Gallery = lazy(() => import('./features/gallery/Gallery'));
 const Checkout = lazy(() => import('./features/ordering/Checkout'));
 const TrackOrder = lazy(() => import('./features/ordering/TrackOrder'));
+const Profile = lazy(() => import('./features/profile/Profile'));
 
 // Auth Pages Code Splitting
 const Login = lazy(() => import('./features/auth/Login'));
@@ -113,6 +114,7 @@ export const App: React.FC = () => {
                       {/* Protected Customer Routes */}
                       <Route path="/reserve" element={<ProtectedRoute allowedRoles={['customer', 'admin']}><Reserve /></ProtectedRoute>} />
                       <Route path="/checkout" element={<ProtectedRoute allowedRoles={['customer', 'admin']}><Checkout /></ProtectedRoute>} />
+                      <Route path="/profile" element={<ProtectedRoute allowedRoles={['customer', 'admin']}><Profile /></ProtectedRoute>} />
 
                       <Route path="*" element={<Home />} />
                     </Routes>

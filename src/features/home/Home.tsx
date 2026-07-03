@@ -5,7 +5,7 @@ import { Reveal } from '../../components/Animation/Reveal';
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { CAFE_METADATA } from '../../constants';
-import { REVIEWS } from '../../data/reviews';
+import { supabase } from '../../config/supabaseClient';
 import { 
   Coffee, 
   MapPin, 
@@ -13,20 +13,40 @@ import {
   Users, 
   BookOpen, 
   Laptop, 
-  Sparkles, 
-  ArrowRight,
-  MessageSquareCode
+  ArrowRight
 } from 'lucide-react';
+
+interface Dish {
+  id: string;
+  name: string;
+  desc: string;
+  price: string;
+  image: string;
+}
+
+interface Testimonial {
+  id: string;
+  authorName: string;
+  rating: number;
+  text: string;
+  relativeTime: string;
+  tags: string[];
+}
 
 export const Home: React.FC = () => {
   const navigate = useNavigate();
   const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
 
-  // Statistics counters animated trigger
+  // Stats counter
   const [stats, setStats] = useState({ coffeeServed: 0, reservations: 0, satisfaction: 0 });
 
+  // Dynamic content states
+  const [featuredDishes, setFeaturedDishes] = useState<Dish[]>([]);
+  const [reviewsList, setReviewsList] = useState<Testimonial[]>([]);
+  const [banners, setBanners] = useState<{ desktop: string; mobile: string } | null>(null);
+
+  // Statistics counters animated trigger
   useEffect(() => {
-    // Simple mock counter animation
     const interval = setInterval(() => {
       setStats((prev) => {
         const nextCoffee = prev.coffeeServed < 1240 ? prev.coffeeServed + 40 : 1240;
@@ -43,29 +63,106 @@ export const Home: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
-  const signatureDishes = [
-    {
-      id: 'burger-clt',
-      name: 'New York CLT UFO Burger',
-      desc: 'Our signature sealed-edge burger containing rich cheddar cheese, house sauce, and crispy salad.',
-      price: '₹295',
-      image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'taiyaki-custard',
-      name: 'Custard Cream Taiyaki',
-      desc: 'Traditional Japanese fish-shaped waffle with Madagascar vanilla custard and a touch of sugar glaze.',
-      price: '₹245',
-      image: 'https://images.unsplash.com/photo-1582772643801-b8d9600d8be9?w=600&auto=format&fit=crop&q=80',
-    },
-    {
-      id: 'matcha-raspberry',
-      name: 'Iced Raspberry Matcha',
-      desc: 'A striking layered drink of ceremonial green tea whisked over cold raspberry foam and oat milk.',
-      price: '₹245',
-      image: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=80',
-    }
-  ];
+  // Fetch dynamic content from Supabase
+  useEffect(() => {
+    const loadHomeData = async () => {
+      try {
+        // 1. Fetch featured popular dishes
+        const { data: dishesData } = await supabase
+          .from('menu_items')
+          .select('*')
+          .eq('is_popular', true)
+          .limit(3);
+
+        if (dishesData && dishesData.length > 0) {
+          setFeaturedDishes(
+            dishesData.map((d: any) => ({
+              id: d.id,
+              name: d.name,
+              desc: d.description,
+              price: `₹${d.price}`,
+              image: d.image_url,
+            }))
+          );
+        } else {
+          // Default fallbacks if empty
+          setFeaturedDishes([
+            {
+              id: 'burger-clt',
+              name: 'New York CLT UFO Burger',
+              desc: 'Our signature sealed-edge burger containing rich cheddar cheese, house sauce, and crispy salad.',
+              price: '₹295',
+              image: 'https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=600&auto=format&fit=crop&q=80',
+            },
+            {
+              id: 'taiyaki-custard',
+              name: 'Custard Cream Taiyaki',
+              desc: 'Traditional Japanese fish-shaped waffle with Madagascar vanilla custard and a touch of sugar glaze.',
+              price: '₹245',
+              image: 'https://images.unsplash.com/photo-1582772643801-b8d9600d8be9?w=600&auto=format&fit=crop&q=80',
+            },
+            {
+              id: 'matcha-raspberry',
+              name: 'Iced Raspberry Matcha',
+              desc: 'A striking layered drink of ceremonial green tea whisked over cold raspberry foam and oat milk.',
+              price: '₹245',
+              image: 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=80',
+            }
+          ]);
+        }
+
+        // 2. Fetch approved reviews
+        const { data: reviewsData } = await supabase
+          .from('reviews')
+          .select('*')
+          .eq('status', 'approved')
+          .limit(6);
+
+        if (reviewsData && reviewsData.length > 0) {
+          setReviewsList(
+            reviewsData.map((r: any) => ({
+              id: r.id,
+              authorName: r.author_name,
+              rating: Number(r.rating),
+              text: r.text,
+              relativeTime: new Date(r.created_at).toLocaleDateString(),
+              tags: r.tags || [],
+            }))
+          );
+        } else {
+          setReviewsList([
+            {
+              id: 'rev-sujal',
+              authorName: 'Sujal Gupta',
+              rating: 5,
+              relativeTime: '3 weeks ago',
+              text: 'Great experience, beautiful ambiance! Must try their UFO burger and Ramen. Perfect spot to chill.',
+              tags: ['UFO Burger', 'Ramen', 'Ambiance'],
+            }
+          ]);
+        }
+
+        // 3. Fetch home banners
+        const { data: bannersData } = await supabase
+          .from('settings')
+          .select('value')
+          .eq('key', 'banners')
+          .maybeSingle();
+
+        if (bannersData?.value) {
+          setBanners({
+            desktop: bannersData.value.desktop_url,
+            mobile: bannersData.value.mobile_url,
+          });
+        }
+
+      } catch (err) {
+        console.error('Failed loading home elements', err);
+      }
+    };
+
+    loadHomeData();
+  }, []);
 
   const timelineSteps = [
     { time: '08:00 AM', title: 'Morning Brew Focus', desc: 'Sip on pour-overs or ceremonial matcha while working in our quiet designated workspace corners.' },
@@ -75,73 +172,63 @@ export const Home: React.FC = () => {
   ];
 
   return (
-    <div className="relative overflow-x-hidden min-h-screen">
+    <div className="bg-bg-primary text-text-primary min-h-screen">
       
-      {/* 1. Cinematic Hero Section */}
-      <section className="relative min-h-screen md:h-screen w-full flex items-center bg-brand-dark/20 text-white pt-24 pb-12 md:pt-16 md:pb-0">
-        
-        {/* Background Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-brand-dark/40 via-brand-dark/25 to-bg-primary z-10 transition-colors" />
+      {/* 1. Hero / ThreeJS Scene Section */}
+      <section className="relative h-screen w-full overflow-hidden bg-brand-dark">
+        {/* Render responsive banner background if custom banners uploaded */}
+        {banners ? (
+          <div className="absolute inset-0 z-0">
+            <picture>
+              <source media="(max-width: 768px)" srcSet={banners.mobile} />
+              <img 
+                src={banners.desktop} 
+                alt="Cafe Iroki Banner" 
+                className="w-full h-full object-cover filter brightness-50"
+              />
+            </picture>
+          </div>
+        ) : (
+          /* WebGL Canvas underlay */
+          <div className="absolute inset-0 z-0">
+            <ThreeHero />
+          </div>
+        )}
 
-        {/* 3D WebGL Canvas Background */}
-        <ThreeHero />
+        <div className="absolute inset-0 bg-gradient-to-t from-bg-primary via-transparent to-transparent z-1" />
 
-        {/* Floating Sakura Petals overlay backup (CSS anim) */}
-        <div className="absolute inset-0 pointer-events-none z-10 overflow-hidden">
-          {Array.from({ length: 12 }).map((_, i) => (
-            <div
-              key={i}
-              className="absolute bg-pink-200/40 rounded-full animate-sakura-fall"
-              style={{
-                left: `${Math.random() * 100}%`,
-                top: `-${5 + Math.random() * 10}%`,
-                width: `${4 + Math.random() * 10}px`,
-                height: `${6 + Math.random() * 12}px`,
-                animationDelay: `${Math.random() * 10}s`,
-                animationDuration: `${8 + Math.random() * 8}s`,
-              }}
-            />
-          ))}
-        </div>
-
-        {/* Main Hero Contents */}
-        <div className="max-w-7xl mx-auto px-4 md:px-12 w-full relative z-20 flex flex-col items-start gap-4">
-          <Reveal direction="up" delay={0.2}>
-            <span className="text-xs uppercase tracking-widest text-accent-gold font-bold flex items-center gap-2">
-              <Sparkles size={14} className="animate-spin-slow" />
-              Nagpur's Premium Japanese Experience
-            </span>
-          </Reveal>
-
-          <Reveal direction="up" delay={0.4}>
-            <h1 className="text-3xl md:text-6xl xl:text-7xl font-serif font-black tracking-tight leading-none text-text-primary dark:text-white drop-shadow-sm max-w-4xl">
-              Experience Japanese Café Culture in Nagpur
-            </h1>
-          </Reveal>
-
-          <Reveal direction="up" delay={0.6}>
-            <p className="text-sm md:text-lg text-text-secondary dark:text-white/80 max-w-xl leading-relaxed mt-2">
-              Step out of the busy world into Cafe Iroki. Explore premium single-origin pour overs, artisan sealed-edge UFO burgers, and authentic Uji matcha green tea bowls.
+        {/* Hero Copy Info */}
+        <div className="absolute inset-0 z-10 flex flex-col justify-center max-w-7xl mx-auto px-6 md:px-12 pointer-events-none select-none">
+          <Reveal direction="left" className="flex flex-col gap-5 max-w-lg md:max-w-xl pointer-events-auto">
+            <div className="flex flex-col gap-2.5">
+              <span className="text-xs uppercase tracking-widest text-brand-primary font-bold">
+                Wardha Road, Nagpur
+              </span>
+              <h1 className="text-4xl md:text-6xl font-serif font-black tracking-tight leading-tight">
+                Your Peaceful Japanese Sanctuary
+              </h1>
+            </div>
+            
+            <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-sans">
+              Inspired by Japanese minimal aesthetics, Cafe Iroki brings specialty pour-over coffee, Kyoto ceremonial matcha, and sealed UFO burgers to Nagpur.
             </p>
-          </Reveal>
 
-          <Reveal direction="up" delay={0.8} className="mt-4">
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-wrap gap-3.5 pt-3">
               <Button
-                variant="gold"
-                size="lg"
-                rightIcon={<ArrowRight size={16} />}
+                variant="secondary"
+                size="md"
+                className="shadow-premium-md cursor-pointer"
                 onClick={() => navigate('/menu')}
               >
                 Order Online
               </Button>
               <Button
                 variant="outline"
-                size="lg"
-                className="text-text-primary border-text-primary dark:text-white dark:border-white hover:bg-white/10"
+                size="md"
+                className="cursor-pointer"
                 onClick={() => navigate('/reserve')}
               >
-                Reserve Table
+                Book Table
               </Button>
             </div>
           </Reveal>
@@ -203,7 +290,6 @@ export const Home: React.FC = () => {
                 alt="Cafe interior view"
                 className="w-full h-full object-cover filter contrast-105 hover:scale-105 transition-all duration-700"
               />
-              {/* Float badge */}
               <div className="absolute bottom-6 left-6 glassmorphism p-4 rounded-md border border-white/20 text-xs flex items-center gap-3">
                 <div className="p-2 rounded bg-accent-gold text-white font-bold">
                   ★ 4.7
@@ -235,7 +321,6 @@ export const Home: React.FC = () => {
             <Button
               variant="outline"
               size="md"
-              rightIcon={<ArrowRight size={14} />}
               onClick={() => navigate('/menu')}
             >
               View Full Menu
@@ -243,7 +328,7 @@ export const Home: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {signatureDishes.map((dish, i) => (
+            {featuredDishes.map((dish, i) => (
               <Reveal key={dish.id} direction="up" delay={i * 0.15}>
                 <Card
                   variant="premium"
@@ -285,6 +370,24 @@ export const Home: React.FC = () => {
         </div>
       </section>
 
+      {/* Metrics & stats details section */}
+      <section className="py-16 bg-bg-secondary border-t border-b border-border-subtle text-text-primary text-center">
+        <div className="max-w-7xl mx-auto px-4 md:px-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-4xl font-serif font-bold text-brand-primary">{stats.coffeeServed}+</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-text-secondary">Specialty Drinks Served</span>
+          </div>
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-4xl font-serif font-bold text-brand-primary">{stats.reservations}+</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-text-secondary">Tables Booked Monthly</span>
+          </div>
+          <div className="flex flex-col items-center gap-1.5">
+            <span className="text-4xl font-serif font-bold text-brand-primary">{stats.satisfaction}%</span>
+            <span className="text-[10px] uppercase font-bold tracking-wider text-text-secondary">Aesthetic & Vibe Rating</span>
+          </div>
+        </div>
+      </section>
+
       {/* 4. Cafe Experience Timeline */}
       <section className="py-24 max-w-7xl mx-auto px-4 md:px-12 text-text-primary">
         <div className="flex flex-col items-center text-center gap-4 mb-16">
@@ -303,7 +406,6 @@ export const Home: React.FC = () => {
           {timelineSteps.map((step, idx) => (
             <Reveal key={idx} direction="up" delay={idx * 0.1}>
               <div className="relative">
-                {/* Timeline node */}
                 <div className="absolute left-[-31px] sm:left-[-57px] top-1 h-4 w-4 rounded-full bg-brand-primary border border-bg-primary flex items-center justify-center">
                   <div className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" />
                 </div>
@@ -319,102 +421,86 @@ export const Home: React.FC = () => {
       </section>
 
       {/* 5. Testimonials Slider Section */}
-      <section className="py-24 bg-bg-secondary/40 text-text-primary border-t border-border-subtle/50">
-        <div className="max-w-4xl mx-auto px-4 flex flex-col items-center text-center gap-10">
-          <div className="flex flex-col gap-2">
-            <span className="text-xs uppercase tracking-widest text-brand-primary font-bold">
-              Guest Testimonials
-            </span>
-            <h2 className="text-3xl font-serif font-black tracking-tight">
-              Aesthetic Reviews from Nagpur
-            </h2>
-          </div>
+      {reviewsList.length > 0 && (
+        <section className="py-24 bg-bg-secondary/40 text-text-primary border-t border-border-subtle/50">
+          <div className="max-w-4xl mx-auto px-4 flex flex-col items-center text-center gap-10">
+            <div className="flex flex-col gap-2">
+              <span className="text-xs uppercase tracking-widest text-brand-primary font-bold">
+                Guest Testimonials
+              </span>
+              <h2 className="text-3xl font-serif font-black tracking-tight">
+                Aesthetic Reviews from Nagpur
+              </h2>
+            </div>
 
-          <Reveal direction="up" className="w-full">
-            <Card variant="premium" className="p-8 md:p-12 relative flex flex-col items-center gap-6 shadow-premium-lg border-accent-gold/20">
-              {/* Star Rating display */}
-              <div className="flex items-center gap-1 text-accent-gold text-sm">
-                {Array.from({ length: REVIEWS[currentReviewIndex].rating }).map((_, i) => (
-                  <span key={i}>★</span>
-                ))}
-              </div>
+            <Reveal direction="up" className="w-full">
+              <Card variant="premium" className="p-8 md:p-12 relative flex flex-col items-center gap-6 shadow-premium-lg border-accent-gold/20">
+                {/* Star Rating display */}
+                <div className="flex items-center gap-1 text-accent-gold text-sm">
+                  {Array.from({ length: reviewsList[currentReviewIndex].rating }).map((_, i) => (
+                    <span key={i}>★</span>
+                  ))}
+                </div>
 
-              {/* Review Text block */}
-              <p className="font-serif italic text-base md:text-lg text-text-primary leading-relaxed max-w-2xl">
-                "{REVIEWS[currentReviewIndex].text}"
-              </p>
+                {/* Review Text block */}
+                <p className="font-serif italic text-base md:text-lg text-text-primary leading-relaxed max-w-2xl">
+                  "{reviewsList[currentReviewIndex].text}"
+                </p>
 
-              {/* Guest name */}
-              <div className="flex flex-col items-center gap-1">
-                <span className="font-bold font-sans text-sm tracking-wide">
-                  {REVIEWS[currentReviewIndex].authorName}
-                </span>
-                <span className="text-[10px] text-text-secondary uppercase tracking-widest font-bold">
-                  {REVIEWS[currentReviewIndex].relativeTime} • Verified Maps Reviewer
-                </span>
-              </div>
-
-              {/* Category tags */}
-              <div className="flex flex-wrap justify-center gap-1.5 mt-2">
-                {REVIEWS[currentReviewIndex].tags?.map((tag) => (
-                  <span key={tag} className="text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary border border-brand-primary/10">
-                    #{tag}
+                {/* Guest name */}
+                <div className="flex flex-col items-center gap-1">
+                  <span className="font-bold font-sans text-sm tracking-wide">
+                    {reviewsList[currentReviewIndex].authorName}
                   </span>
-                ))}
-              </div>
+                  <span className="text-[10px] text-text-secondary uppercase tracking-widest font-bold">
+                    {reviewsList[currentReviewIndex].relativeTime} • Verified Maps Reviewer
+                  </span>
+                </div>
 
-              {/* Slider Arrows controls */}
-              <div className="flex items-center gap-6 mt-4">
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentReviewIndex((prev) =>
-                      prev === 0 ? REVIEWS.length - 1 : prev - 1
-                    )
-                  }
-                  className="p-2 border border-border-subtle/50 rounded-full hover:bg-border-subtle/20 hover:text-brand-primary active:scale-90 transition-all cursor-pointer"
-                  aria-label="Previous Review"
-                >
-                  ←
-                </button>
-                <span className="text-xs font-semibold text-text-secondary select-none">
-                  {currentReviewIndex + 1} / {REVIEWS.length}
-                </span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    setCurrentReviewIndex((prev) =>
-                      prev === REVIEWS.length - 1 ? 0 : prev + 1
-                    )
-                  }
-                  className="p-2 border border-border-subtle/50 rounded-full hover:bg-border-subtle/20 hover:text-brand-primary active:scale-90 transition-all cursor-pointer"
-                  aria-label="Next Review"
-                >
-                  →
-                </button>
-              </div>
-            </Card>
-          </Reveal>
-        </div>
-      </section>
+                {/* Category tags */}
+                <div className="flex flex-wrap justify-center gap-1.5 mt-2">
+                  {reviewsList[currentReviewIndex].tags?.map((tag) => (
+                    <span key={tag} className="text-[9px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded bg-brand-primary/10 text-brand-primary border border-brand-primary/10">
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
 
-      {/* 6. Metrics & Floating Contacts */}
-      <section className="py-16 bg-bg-secondary border-t border-b border-border-subtle text-text-primary text-center">
-        <div className="max-w-7xl mx-auto px-4 md:px-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-4xl font-serif font-bold text-brand-primary">{stats.coffeeServed}+</span>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-text-secondary">Specialty Drinks Served</span>
+                {/* Slider Arrows controls */}
+                <div className="flex items-center gap-6 mt-4">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentReviewIndex((prev) =>
+                        prev === 0 ? reviewsList.length - 1 : prev - 1
+                      )
+                    }
+                    className="p-2 border border-border-subtle/50 rounded-full hover:bg-border-subtle/20 hover:text-brand-primary active:scale-90 transition-all cursor-pointer text-xs"
+                    aria-label="Previous Review"
+                  >
+                    ←
+                  </button>
+                  <span className="text-xs font-semibold text-text-secondary select-none">
+                    {currentReviewIndex + 1} / {reviewsList.length}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setCurrentReviewIndex((prev) =>
+                        prev === reviewsList.length - 1 ? 0 : prev + 1
+                      )
+                    }
+                    className="p-2 border border-border-subtle/50 rounded-full hover:bg-border-subtle/20 hover:text-brand-primary active:scale-90 transition-all cursor-pointer text-xs"
+                    aria-label="Next Review"
+                  >
+                    →
+                  </button>
+                </div>
+              </Card>
+            </Reveal>
           </div>
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-4xl font-serif font-bold text-brand-primary">{stats.reservations}+</span>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-text-secondary">Tables Booked Monthly</span>
-          </div>
-          <div className="flex flex-col items-center gap-1.5">
-            <span className="text-4xl font-serif font-bold text-brand-primary">{stats.satisfaction}%</span>
-            <span className="text-[10px] uppercase font-bold tracking-wider text-text-secondary">Aesthetic & Vibe Rating</span>
-          </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* 6. Nagpur Map & Direction Contacts */}
       <section className="py-24 max-w-7xl mx-auto px-4 md:px-12 text-text-primary">
@@ -473,7 +559,6 @@ export const Home: React.FC = () => {
               <div className="absolute inset-0 bg-brand-dark/20 group-hover:bg-brand-dark/10 transition-colors" />
             </div>
             
-            {/* Visual map pin markers */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center">
               <div className="relative flex items-center justify-center">
                 <span className="absolute inline-flex h-12 w-12 rounded-full bg-brand-primary/45 animate-ping" />
@@ -496,14 +581,15 @@ export const Home: React.FC = () => {
           href={CAFE_METADATA.whatsappUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="p-3 bg-[#25D366] text-white rounded-full shadow-premium-lg hover:scale-105 transition-all active:scale-95"
+          className="p-3 bg-[#25D366] text-white rounded-full shadow-premium-lg hover:scale-105 transition-all active:scale-95 text-xs"
           title="Chat on WhatsApp"
         >
-          <MessageSquareCode size={20} />
+          WhatsApp
         </a>
       </div>
 
     </div>
   );
 };
+
 export default Home;
