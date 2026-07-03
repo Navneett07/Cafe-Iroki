@@ -46,7 +46,7 @@ export const Checkout: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { user } = useAuth();
-  const { cartItems, subtotal, discount, gst, deliveryCharge, total, clearCart } = useCart();
+  const { cartItems, subtotal, discount, gst, deliveryCharge, total, clearCart, appliedCoupon } = useCart();
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [createdOrderPayload, setCreatedOrderPayload] = useState<any>(null);
@@ -153,7 +153,7 @@ export const Checkout: React.FC = () => {
 
   const finalizeOrder = async (orderData: any) => {
     try {
-      const order = await orderService.createOrder(orderData);
+      const order = await orderService.createOrder(orderData, appliedCoupon?.code);
       clearCart();
       confetti({
         particleCount: 150,

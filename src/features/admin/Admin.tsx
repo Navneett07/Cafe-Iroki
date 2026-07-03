@@ -567,7 +567,7 @@ export const Admin: React.FC = () => {
                             <span className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded ${
                               o.orderStatus === 'delivered'
                                 ? 'bg-green-100 text-green-700'
-                                : o.orderStatus === 'cancelled'
+                                : o.orderStatus === 'cancelled' || o.orderStatus === 'refunded'
                                 ? 'bg-rose-100 text-rose-700'
                                 : 'bg-amber-100 text-amber-700'
                             }`}>
@@ -575,7 +575,7 @@ export const Admin: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-4 text-right pr-2">
-                            {o.orderStatus !== 'delivered' && o.orderStatus !== 'cancelled' && (
+                            {o.orderStatus !== 'delivered' && o.orderStatus !== 'cancelled' && o.orderStatus !== 'refunded' && (
                               <select
                                 className="bg-bg-secondary border border-border-subtle text-text-primary rounded text-xs px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-brand-primary"
                                 value={o.orderStatus}
@@ -583,10 +583,13 @@ export const Admin: React.FC = () => {
                                 onChange={(e) => handleUpdateOrderStatus(o.id, e.target.value as any)}
                               >
                                 <option value="received">Received</option>
+                                <option value="confirmed">Confirmed</option>
                                 <option value="preparing">Preparing</option>
+                                <option value="ready">Ready</option>
                                 <option value="out-for-delivery">Out for Delivery</option>
                                 <option value="delivered">Delivered</option>
                                 <option value="cancelled">Cancelled</option>
+                                <option value="refunded">Refunded</option>
                               </select>
                             )}
                           </td>

@@ -68,23 +68,80 @@ export const orderService = {
   },
 
   /**
-   * Submits a new customer food order to Supabase.
+   * Submits a new customer food order to Supabase with server-side validation.
    */
-  async createOrder(input: Omit<Order, 'id' | 'createdAt' | 'estimatedDeliveryTime' | 'orderStatus' | 'paymentStatus'>): Promise<Order> {
+  async createOrder(
+    input: Omit<Order, 'id' | 'createdAt' | 'estimatedDeliveryTime' | 'orderStatus' | 'paymentStatus'>,
+    couponCode?: string
+  ): Promise<Order> {
     // 1. Get current logged-in auth user
     const { data: { session } } = await supabase.auth.getSession();
     
-    // 2. Insert parent order record
+    // 2. Fetch actual menu item prices from Supabase
+    const menuItemIds = input.items.map((it) => it.menuItemId);
+    const { data: menuDbItems, error: menuErr } = await supabase
+      .from('menu_items')
+      .select('id, price')
+      .in('id', menuItemIds);
+
+    if (menuErr || !menuDbItems) {
+      throw new Error('Verification failed: Unable to fetch menu prices.');
+    }
+
+    const priceMap = new Map<string, number>();
+    menuDbItems.forEach((item: any) => {
+      priceMap.set(item.id, Number(item.price));
+    });
+
+    // 3. Recalculate subtotal
+    let verifiedSubtotal = 0;
+    const verifiedItems = input.items.map((it) => {
+      const dbPrice = priceMap.get(it.menuItemId) ?? it.price;
+      verifiedSubtotal += dbPrice * it.quantity;
+      return {
+        ...it,
+        price: dbPrice,
+      };
+    });
+
+    // 4. Validate coupon
+    let verifiedDiscount = 0;
+    if (couponCode) {
+      const { data: couponData } = await supabase
+        .from('coupons')
+        .select('*')
+        .eq('code', couponCode.trim().toUpperCase())
+        .eq('is_active', true)
+        .gte('expiry_date', new Date().toISOString().split('T')[0])
+        .maybeSingle();
+
+      if (couponData && verifiedSubtotal >= Number(couponData.min_order_value)) {
+        const val = Number(couponData.value);
+        if (couponData.discount_type === 'percentage') {
+          verifiedDiscount = (verifiedSubtotal * val) / 100;
+        } else {
+          verifiedDiscount = val;
+        }
+      }
+    }
+
+    // 5. Calculate taxes and delivery charge
+    const taxableAmount = Math.max(0, verifiedSubtotal - verifiedDiscount);
+    const verifiedGst = taxableAmount * 0.05; // 5% GST
+    const verifiedDelivery = verifiedSubtotal === 0 || taxableAmount >= 500 ? 0 : 50; // Free delivery over ₹500
+    const verifiedTotal = taxableAmount + verifiedGst + verifiedDelivery;
+
+    // 6. Insert parent order record
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
       .insert({
         user_id: session?.user?.id || null,
         order_status: 'received',
-        subtotal: input.subtotal,
-        discount: input.discount,
-        gst: input.gst,
-        delivery_charge: input.deliveryCharge,
-        total: input.total,
+        subtotal: verifiedSubtotal,
+        discount: verifiedDiscount,
+        gst: verifiedGst,
+        delivery_charge: verifiedDelivery,
+        total: verifiedTotal,
         delivery_address: input.deliveryAddress,
         payment_method: input.paymentMethod,
         payment_status: input.paymentMethod === 'cod' ? 'pending' : 'paid',
@@ -97,10 +154,10 @@ export const orderService = {
       throw orderError;
     }
 
-    // 3. Insert list items
-    const itemsToInsert = input.items.map((it) => ({
+    // 7. Insert list items
+    const itemsToInsert = verifiedItems.map((it) => ({
       order_id: orderData.id,
-      menu_item_id: it.menuItemId.includes('-') && it.menuItemId.length > 20 ? it.menuItemId : null, // only validate UUIDs
+      menu_item_id: it.menuItemId,
       name: it.name,
       quantity: it.quantity,
       price: it.price,
@@ -119,6 +176,12 @@ export const orderService = {
 
     return {
       ...input,
+      subtotal: verifiedSubtotal,
+      discount: verifiedDiscount,
+      gst: verifiedGst,
+      deliveryCharge: verifiedDelivery,
+      total: verifiedTotal,
+      items: verifiedItems,
       id: orderData.id,
       orderStatus: 'received',
       paymentStatus: orderData.payment_status as 'pending' | 'paid',

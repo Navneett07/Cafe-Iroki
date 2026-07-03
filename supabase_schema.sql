@@ -91,7 +91,7 @@ CREATE POLICY "Allow admin to manage menu items" ON public.menu_items
 CREATE TABLE public.orders (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
-    order_status TEXT DEFAULT 'received' CHECK (order_status IN ('received', 'preparing', 'out-for-delivery', 'delivered', 'cancelled')),
+    order_status TEXT DEFAULT 'received' CHECK (order_status IN ('received', 'confirmed', 'preparing', 'ready', 'out-for-delivery', 'delivered', 'cancelled', 'refunded')),
     subtotal DECIMAL(10, 2) NOT NULL,
     discount DECIMAL(10, 2) DEFAULT 0.00 NOT NULL,
     gst DECIMAL(10, 2) NOT NULL,
@@ -338,3 +338,32 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 CREATE TRIGGER on_auth_user_created
     AFTER INSERT ON auth.users
     FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- 16. Create Cart Items Table
+CREATE TABLE public.cart_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    menu_item_id TEXT REFERENCES public.menu_items(id) ON DELETE CASCADE NOT NULL,
+    quantity INTEGER DEFAULT 1 NOT NULL CHECK (quantity > 0),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE (user_id, menu_item_id)
+);
+
+ALTER TABLE public.cart_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users manage own cart items" ON public.cart_items
+    FOR ALL USING (auth.uid() = user_id);
+
+-- 17. Create Favorite Items Table
+CREATE TABLE public.favorite_items (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID REFERENCES public.profiles(id) ON DELETE CASCADE NOT NULL,
+    menu_item_id TEXT REFERENCES public.menu_items(id) ON DELETE CASCADE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE (user_id, menu_item_id)
+);
+
+ALTER TABLE public.favorite_items ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users manage own favorite items" ON public.favorite_items
+    FOR ALL USING (auth.uid() = user_id);

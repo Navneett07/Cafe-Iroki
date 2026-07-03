@@ -87,12 +87,15 @@ export const TrackOrder: React.FC = () => {
 
   const milestones: { key: Order['orderStatus']; label: string; icon: string; desc: string }[] = [
     { key: 'received', label: 'Order Placed', icon: '📝', desc: 'Kitchen acknowledged receipt.' },
-    { key: 'preparing', label: 'Chef Preparing', icon: '🍳', desc: 'Searing patties & brewing tea.' },
+    { key: 'confirmed', label: 'Confirmed', icon: '🤝', desc: 'Order confirmed by Cafe Iroki.' },
+    { key: 'preparing', label: 'Preparing', icon: '🍳', desc: 'Chef preparing your items.' },
+    { key: 'ready', label: 'Ready', icon: '📦', desc: 'Food packaged and sealed.' },
     { key: 'out-for-delivery', label: 'Out for Delivery', icon: '🛵', desc: 'Leaving Samarth Nagar Metro base.' },
-    { key: 'delivered', label: 'Feast Delivered', icon: '🍱', desc: 'Enjoy your warm Japanese meal!' },
+    { key: 'delivered', label: 'Delivered', icon: '🍱', desc: 'Enjoy your warm Japanese meal!' },
   ];
 
   const currentStepIndex = milestones.findIndex((m) => m.key === order.orderStatus);
+  const isCancelledOrRefunded = order.orderStatus === 'cancelled' || order.orderStatus === 'refunded';
 
   return (
     <div className="pt-28 pb-24 bg-bg-primary text-text-primary min-h-screen">
@@ -121,7 +124,21 @@ export const TrackOrder: React.FC = () => {
               <Card variant="premium" className="p-6 md:p-8 space-y-8">
                 
                 {/* Delivery timing estimation card */}
-                {order.orderStatus !== 'delivered' ? (
+                {isCancelledOrRefunded ? (
+                  <div className="flex items-center gap-4 p-4 bg-rose-600/10 border border-rose-600/20 rounded-md text-rose-600">
+                    <span className="text-2xl">⚠️</span>
+                    <div>
+                      <p className="text-xs uppercase tracking-widest font-bold">
+                        {order.orderStatus === 'refunded' ? 'Order Refunded' : 'Order Cancelled'}
+                      </p>
+                      <p className="text-sm font-semibold">
+                        {order.orderStatus === 'refunded' 
+                          ? 'Your payment was successfully refunded.' 
+                          : 'This order was cancelled. Please contact support.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : order.orderStatus !== 'delivered' ? (
                   <div className="flex items-center gap-4 p-4 bg-accent-gold/10 border border-accent-gold/20 rounded-md">
                     <Clock className="text-brand-primary animate-pulse h-8 w-8 flex-shrink-0" />
                     <div>
