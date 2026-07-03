@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <circle cx="50" cy="50" r="48" fill="#1C0F0B" stroke="#C5A880" stroke-width="2"/>
+  <path d="M50 78 V55 M50 62 L40 52 M50 58 L62 46" stroke="#C5A880" stroke-width="4" stroke-linecap="round"/>
+  <!-- Leaf groups -->
+  <circle cx="40" cy="48" r="8" fill="#8C6239" opacity="0.9"/>
+  <circle cx="62" cy="42" r="9" fill="#8C6239" opacity="0.9"/>
+  <circle cx="50" cy="32" r="12" fill="#C5A880"/>
+  <circle cx="36" cy="36" r="7" fill="#E07A5F" opacity="0.8"/>
+  <circle cx="64" cy="34" r="7" fill="#E07A5F" opacity="0.8"/>
+</svg>

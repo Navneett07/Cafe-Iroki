@@ -1,0 +1,16 @@
+{
+  "short_name": "Cafe Iroki",
+  "name": "Cafe Iroki Nagpur | Japanese Inspired Cafe",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "type": "image/svg+xml",
+      "sizes": "any"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#1C0F0B",
+  "theme_color": "#FDFBF7",
+  "display": "standalone",
+  "orientation": "portrait"
+}

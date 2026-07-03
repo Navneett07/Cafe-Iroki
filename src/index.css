@@ -1,0 +1,154 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:ital,wght@0,200..800;1,200..800&display=swap');
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #FDFBF7;
+  --bg-secondary: #F7F4EF;
+  --text-primary: #1C0F0B;
+  --text-secondary: #5C4D46;
+  --border-subtle: rgba(28, 15, 11, 0.08);
+  --glass-bg: rgba(253, 251, 247, 0.7);
+  --glass-border: rgba(28, 15, 11, 0.06);
+}
+
+.dark {
+  --bg-primary: #110907;
+  --bg-secondary: #1C0F0B;
+  --text-primary: #FDFBF7;
+  --text-secondary: #C5BDB9;
+  --border-subtle: rgba(253, 251, 247, 0.08);
+  --glass-bg: rgba(17, 9, 7, 0.7);
+  --glass-border: rgba(253, 251, 247, 0.06);
+}
+
+@theme {
+  --color-bg-primary: var(--bg-primary);
+  --color-bg-secondary: var(--bg-secondary);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-border-subtle: var(--border-subtle);
+  
+  --color-brand-primary: #8C6239;
+  --color-accent-warm: #E07A5F;
+  --color-accent-gold: #C5A880;
+  
+  --font-serif: "Playfair Display", "Cinzel", Georgia, serif;
+  --font-sans: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
+  
+  --shadow-premium-sm: 0 2px 8px -2px rgba(28, 15, 11, 0.04);
+  --shadow-premium-md: 0 12px 24px -4px rgba(28, 15, 11, 0.06), 0 4px 12px -2px rgba(28, 15, 11, 0.02);
+  --shadow-premium-lg: 0 32px 64px -16px rgba(28, 15, 11, 0.1), 0 16px 32px -8px rgba(28, 15, 11, 0.04);
+  --shadow-glow-gold: 0 0 25px rgba(197, 168, 128, 0.2);
+  --shadow-glow-orange: 0 0 25px rgba(224, 122, 95, 0.25);
+  
+  --radius-sm: 4px;
+  --radius-md: 12px;
+  --radius-lg: 24px;
+  
+  --animate-sakura-fall: sakura-fall 12s linear infinite;
+  --animate-spin-slow: spin 20s linear infinite;
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-pulse-slow: pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-glow: glow 2s ease-in-out infinite alternate;
+}
+
+@keyframes sakura-fall {
+  0% {
+    transform: translateY(-10%) translateX(0) rotate(0deg);
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(110vh) translateX(100px) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes glow {
+  from {
+    text-shadow: 0 0 4px rgba(197, 168, 128, 0.2), 0 0 10px rgba(197, 168, 128, 0.2);
+  }
+  to {
+    text-shadow: 0 0 12px rgba(197, 168, 128, 0.6), 0 0 20px rgba(197, 168, 128, 0.4);
+  }
+}
+
+html, body {
+  scroll-behavior: smooth;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+  max-width: 100vw;
+}
+
+
+
+/* Elegant minimalist scrollbar design */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-primary);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-subtle);
+  border-radius: 9999px;
+  transition: background 0.3s;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #8C6239;
+}
+
+/* Custom premium elements styling */
+.glassmorphism {
+  background: var(--glass-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid var(--glass-border);
+}
+
+/* Performance optimizations for mobile & tablets */
+@media (max-width: 1024px) {
+  .glassmorphism {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: var(--bg-primary) !important;
+  }
+
+  :root, .dark {
+    --shadow-premium-sm: 0 1px 3px rgba(28, 15, 11, 0.04);
+    --shadow-premium-md: 0 2px 6px rgba(28, 15, 11, 0.05);
+    --shadow-premium-lg: 0 4px 12px rgba(28, 15, 11, 0.06);
+    --shadow-glow-gold: none !important;
+    --shadow-glow-orange: none !important;
+  }
+}
+
+/* Hide input spin buttons */
+input::-webkit-outer-spin-button,
+input::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type=number] {
+  -moz-appearance: textfield;
+}
