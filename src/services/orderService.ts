@@ -22,6 +22,10 @@ const mapDbOrderToOrder = (dbOrder: any): Order => {
     orderStatus: dbOrder.order_status as 'received' | 'confirmed' | 'preparing' | 'ready' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'refunded',
     createdAt: dbOrder.created_at,
     estimatedDeliveryTime: '30 mins',
+    paymentId: dbOrder.payment_id || undefined,
+    razorpayOrderId: dbOrder.razorpay_order_id || undefined,
+    razorpaySignature: dbOrder.razorpay_signature || undefined,
+    razorpayRefundId: dbOrder.razorpay_refund_id || undefined,
     items: dbItems.map((it: any) => ({
       menuItemId: it.menu_item_id,
       name: it.name,

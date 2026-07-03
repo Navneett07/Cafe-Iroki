@@ -101,6 +101,9 @@ CREATE TABLE public.orders (
     payment_method TEXT NOT NULL CHECK (payment_method IN ('upi', 'card', 'cod')),
     payment_status TEXT DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded')),
     payment_id TEXT, -- Razorpay Payment ID or Order ID
+    razorpay_order_id TEXT,
+    razorpay_signature TEXT,
+    razorpay_refund_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 

@@ -58,6 +58,10 @@ export interface Order {
   paymentMethod: 'upi' | 'card' | 'cod';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
   orderStatus: 'received' | 'confirmed' | 'preparing' | 'ready' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'refunded';
+  paymentId?: string;
+  razorpayOrderId?: string;
+  razorpaySignature?: string;
+  razorpayRefundId?: string;
   createdAt: string;
   estimatedDeliveryTime: string; // ISO or relative minutes
 }

@@ -13,6 +13,7 @@ import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Reveal } from '../../components/Animation/Reveal';
 import { ShoppingBag, ArrowLeft, ShieldCheck, QrCode, CreditCard } from 'lucide-react';
+import { supabase } from '../../config/supabaseClient';
 
 const loadRazorpayScript = (): Promise<boolean> => {
   return new Promise((resolve) => {
@@ -76,7 +77,8 @@ export const Checkout: React.FC = () => {
   const onSubmit = async (data: CheckoutFormInput) => {
     setCheckoutLoading(true);
     try {
-      const orderPayload = {
+      // 1. Submit parent order to backend (which returns order ID)
+      const order = await orderService.createOrder({
         items: cartItems,
         subtotal,
         discount,
@@ -91,17 +93,21 @@ export const Checkout: React.FC = () => {
           notes: data.notes,
         },
         paymentMethod: data.paymentMethod,
-      };
+      }, appliedCoupon?.code);
 
-      setCreatedOrderPayload(orderPayload);
+      setCreatedOrderPayload(order);
 
       // If COD: Proceed directly
       if (data.paymentMethod === 'cod') {
-        const orderData = {
-          ...orderPayload,
-          paymentStatus: 'pending' as const,
-        };
-        await finalizeOrder(orderData);
+        clearCart();
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ['#8C6239', '#C5A880', '#E07A5F'],
+        });
+        showToast('Order placed successfully!', 'success');
+        navigate(`/track/${order.id}`);
       } else {
         // UPI / Card: Open Razorpay checkout portal
         const isLoaded = await loadRazorpayScript();
@@ -111,20 +117,58 @@ export const Checkout: React.FC = () => {
           return;
         }
 
+        // Invoke payments Edge Function to create a Razorpay order
+        const { data: rzpOrderData, error: rzpFuncErr } = await supabase.functions.invoke('payments', {
+          body: {
+            action: 'create_payment_order',
+            orderId: order.id,
+          },
+        });
+
+        if (rzpFuncErr || !rzpOrderData?.razorpayOrderId) {
+          showToast('Failed to initialize gateway transaction.', 'error');
+          setCheckoutLoading(false);
+          return;
+        }
+
         const options = {
           key: (import.meta.env.VITE_RAZORPAY_KEY as string) || 'rzp_test_placeholder_key',
-          amount: Math.round(total * 100), // amount in paise
+          amount: Math.round(total * 100),
           currency: 'INR',
           name: 'Cafe Iroki',
           description: 'Nagpur Premium Japanese Experience',
-          image: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?w=100&auto=format&fit=crop&q=80',
+          order_id: rzpOrderData.razorpayOrderId,
           handler: async function (response: any) {
-            const paidOrderData = {
-              ...orderPayload,
-              paymentId: response.razorpay_payment_id,
-              paymentStatus: 'paid' as const,
-            };
-            await finalizeOrder(paidOrderData);
+            try {
+              // Invoke payments Edge Function to verify signature
+              const { data: verifyData, error: verifyErr } = await supabase.functions.invoke('payments', {
+                body: {
+                  action: 'verify_signature',
+                  orderId: order.id,
+                  razorpayPaymentId: response.razorpay_payment_id,
+                  razorpayOrderId: response.razorpay_order_id,
+                  razorpaySignature: response.razorpay_signature,
+                },
+              });
+
+              if (verifyErr || !verifyData?.success) {
+                showToast('Payment verification signature check failed.', 'error');
+                return;
+              }
+
+              clearCart();
+              confetti({
+                particleCount: 150,
+                spread: 80,
+                origin: { y: 0.6 },
+                colors: ['#8C6239', '#C5A880', '#E07A5F'],
+              });
+              showToast('Payment successful! Order confirmed.', 'success');
+              navigate(`/track/${order.id}`);
+            } catch (err) {
+              console.error(err);
+              showToast('Verification failed.', 'error');
+            }
           },
           prefill: {
             name: data.fullName,
@@ -148,24 +192,6 @@ export const Checkout: React.FC = () => {
       console.error(err);
       showToast('Failed to checkout. Please check form parameters.', 'error');
       setCheckoutLoading(false);
-    }
-  };
-
-  const finalizeOrder = async (orderData: any) => {
-    try {
-      const order = await orderService.createOrder(orderData, appliedCoupon?.code);
-      clearCart();
-      confetti({
-        particleCount: 150,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ['#8C6239', '#C5A880', '#E07A5F'],
-      });
-      showToast('Order placed successfully!', 'success');
-      navigate(`/track/${order.id}`);
-    } catch (err) {
-      console.error(err);
-      showToast('Order finalization failed.', 'error');
     }
   };
 
