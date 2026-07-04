@@ -1,3 +1,4 @@
+/// <reference types="vitest" />
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
@@ -9,6 +10,12 @@ export default defineConfig({
     react(),
     tailwindcss(),
   ],
+  resolve: {
+    alias: {
+      '@shared': resolve(__dirname, './apps/shared/src'),
+      '@': resolve(__dirname, './apps/admin-app/src'),
+    },
+  },
   build: {
     target: 'es2020',
     cssCodeSplit: true,
@@ -29,5 +36,11 @@ export default defineConfig({
         },
       },
     },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/setupTests.ts'],
+    exclude: ['node_modules', 'dist', '.idea', '.git', '.cache', 'tests/**'],
   },
 })
