@@ -1,32 +1,67 @@
-# React + TypeScript + Vite
+# Cafe Iroki — Production SaaS Platform
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+A realtime restaurant platform for Cafe Iroki (Nagpur): a customer web app, a standalone
+admin portal, Supabase backend (Postgres + RLS + Realtime + Storage + Edge Functions),
+and Razorpay payments.
 
-Currently, two official plugins are available:
+## Architecture
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+| Layer | Stack |
+|-------|-------|
+| Customer web app | React 19 + TypeScript + Vite + Tailwind 4 (root `src/`) |
+| Admin portal | React 19 + React Query + Recharts (`apps/admin-app/`) |
+| Shared code | `apps/shared/` (types, formatters) |
+| Backend | Supabase — Postgres, RLS, Realtime, Storage |
+| Serverless | Supabase Edge Functions (`supabase/functions/`): checkout, payments, admin-orders, reservations, invoice |
+| Payments | Razorpay (server-verified signatures) |
+| Hosting | Vercel (multi-page: `/` customer, `/admin` portal) |
 
-## React Compiler
+## Local Development
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+```bash
+# Customer app
+npm install
+cp .env.example .env      # fill in Supabase + Razorpay keys
+npm run dev               # http://localhost:5173
 
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+# Admin portal
+cd apps/admin-app
+npm install
+npm run dev               # http://localhost:5174
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Scripts
+
+| App | Lint | Build |
+|-----|------|-------|
+| Customer (root) | `npm run lint` (oxlint) | `npm run build` |
+| Admin (`apps/admin-app`) | `npm run lint` (tsc) | `npm run build` |
+
+## Environment Variables
+
+See [`.env.example`](./.env.example). Required at build time:
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`, `VITE_RAZORPAY_KEY`.
+Optional: `VITE_GA_ID` (analytics), `VITE_SENTRY_DSN` (error logging).
+
+> **Security:** never expose the Supabase Service Role key to any frontend.
+> It is used only inside Edge Functions. All client reads/writes go through RLS.
+
+## Production Features (Part 8)
+
+- **PWA** — `public/manifest.json`, service worker (`public/sw.js`), offline fallback (`public/offline.html`), registered in prod via `src/lib/registerServiceWorker.ts`.
+- **SEO** — meta, canonical, Open Graph, Twitter Cards, JSON-LD Restaurant schema in `index.html`; `public/robots.txt`, `public/sitemap.xml`.
+- **Performance** — vendor code-splitting (`vite.config.ts` manualChunks), immutable asset caching, image `loading="lazy"`, font preconnect.
+- **Observability** — Sentry-ready `src/lib/logger.ts`; GA4-ready `src/lib/analytics.ts` (both no-op until env vars set).
+- **Security headers** — `vercel.json` (HSTS, X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy).
+- **Env validation** — `validateEnv()` in `src/config/env.ts`, run at boot.
+- **CI** — `.github/workflows/ci.yml` builds & lints both apps.
+
+## Deployment
+
+Full steps and pre-flight checks: [`DEPLOYMENT.md`](./DEPLOYMENT.md).
+
+## Realtime & DB Setup
+
+Run the migration once in the Supabase SQL Editor:
+`supabase/migrations/0001_realtime_production.sql` (publication, notification triggers, RLS).
+Schema and seeds: `supabase_schema.sql`, `supabase_seeds.sql`.
