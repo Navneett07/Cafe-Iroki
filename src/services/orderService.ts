@@ -17,9 +17,9 @@ const mapDbOrderToOrder = (dbOrder: any): Order => {
       landmark: dbOrder.delivery_address?.landmark || '',
       notes: dbOrder.delivery_address?.notes || '',
     },
-    paymentMethod: dbOrder.payment_method as 'upi' | 'card' | 'cod',
+    paymentMethod: dbOrder.payment_method as Order['paymentMethod'],
     paymentStatus: dbOrder.payment_status as 'pending' | 'paid' | 'failed' | 'refunded',
-    orderStatus: dbOrder.order_status as 'received' | 'confirmed' | 'preparing' | 'ready' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'refunded',
+    orderStatus: dbOrder.order_status as Order['orderStatus'],
     createdAt: dbOrder.created_at,
     estimatedDeliveryTime: '30 mins',
     paymentId: dbOrder.payment_id || undefined,
@@ -72,20 +72,19 @@ export const orderService = {
   },
 
   /**
-   * Submits a new customer food order invoking checkout Supabase Edge Function.
+   * Submits a new guest food order invoking checkout Supabase Edge Function.
    */
   async createOrder(
-    input: Omit<Order, 'id' | 'createdAt' | 'estimatedDeliveryTime' | 'orderStatus' | 'paymentStatus'>,
+    items: { menuItemId: string; quantity: number }[],
+    guest: { guestName: string; guestPhone: string; tableNumber: string; notes?: string },
+    paymentMethod: 'upi' | 'card' | 'counter',
     couponCode?: string
   ): Promise<Order> {
     const payload = {
-      items: input.items.map((it) => ({
-        menuItemId: it.menuItemId,
-        quantity: it.quantity,
-      })),
+      items,
       couponCode,
-      deliveryAddress: input.deliveryAddress,
-      paymentMethod: input.paymentMethod,
+      guest,
+      paymentMethod,
     };
 
     const { data, error } = await supabase.functions.invoke('checkout', {
@@ -97,17 +96,19 @@ export const orderService = {
     }
 
     return {
-      ...input,
+      id: data.orderId,
       subtotal: data.subtotal,
       discount: data.discount,
       gst: data.gst,
       deliveryCharge: data.deliveryCharge,
       total: data.total,
-      id: data.orderId,
+      deliveryAddress: { fullName: guest.guestName, phone: guest.guestPhone, street: '', notes: guest.notes },
+      paymentMethod,
       orderStatus: 'received',
-      paymentStatus: input.paymentMethod === 'cod' ? 'pending' : 'paid',
+      paymentStatus: 'pending',
       createdAt: new Date().toISOString(),
-      estimatedDeliveryTime: '30 mins',
+      estimatedDeliveryTime: 'Preparing',
+      items: items.map((it) => ({ menuItemId: it.menuItemId, quantity: it.quantity, name: '', price: 0 })),
     };
   },
 

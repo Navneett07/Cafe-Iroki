@@ -34,12 +34,12 @@ export interface Review {
 export interface Reservation {
   id: string;
   guestName: string;
-  email: string;
   phone: string;
   date: string; // YYYY-MM-DD
   time: string; // HH:MM
   guests: number;
   location: 'indoor' | 'outdoor' | 'balcony';
+  tableNumber?: string;
   specialRequests?: string;
   status: 'pending' | 'confirmed' | 'cancelled';
 }
@@ -66,9 +66,9 @@ export interface Order {
     landmark?: string;
     notes?: string;
   };
-  paymentMethod: 'upi' | 'card' | 'cod';
+  paymentMethod: 'upi' | 'card' | 'counter' | 'cod';
   paymentStatus: 'pending' | 'paid' | 'failed' | 'refunded';
-  orderStatus: 'received' | 'confirmed' | 'preparing' | 'ready' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'refunded';
+  orderStatus: 'received' | 'confirmed' | 'preparing' | 'ready' | 'completed' | 'out-for-delivery' | 'delivered' | 'cancelled' | 'refunded';
   paymentId?: string;
   razorpayOrderId?: string;
   razorpaySignature?: string;

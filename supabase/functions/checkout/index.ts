@@ -11,17 +11,18 @@ interface OrderItemInput {
   quantity: number;
 }
 
+interface GuestInfo {
+  guestName: string;
+  guestPhone: string;
+  tableNumber: string;
+  notes?: string;
+}
+
 interface CheckoutPayload {
   items: OrderItemInput[];
   couponCode?: string;
-  deliveryAddress: {
-    fullName: string;
-    phone: string;
-    street: string;
-    landmark?: string;
-    notes?: string;
-  };
-  paymentMethod: "upi" | "card" | "cod";
+  guest: GuestInfo;
+  paymentMethod: "upi" | "card" | "counter";
 }
 
 serve(async (req) => {
@@ -31,73 +32,69 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // 1. Initialise Supabase Client with Auth header Context (forces RLS checks if desired)
-    const supabaseClient = createClient(
+    // 1. Create service-role client for DB writes
+    const serviceClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        global: { headers: { Authorization: authHeader } },
-      }
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
 
-    // 2. Retrieve user profile
-    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: "Invalid user token session" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // 2. Optionally identify an authenticated user (not required)
+    let userId: string | null = null;
+    const authHeader = req.headers.get("Authorization");
+    if (authHeader && authHeader !== "Bearer undefined") {
+      const anonClient = createClient(
+        Deno.env.get("SUPABASE_URL") ?? "",
+        Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        { global: { headers: { Authorization: authHeader } } }
+      );
+      const { data: { user } } = await anonClient.auth.getUser();
+      if (user) userId = user.id;
     }
 
     const body: CheckoutPayload = await req.json();
-    const { items, couponCode, deliveryAddress, paymentMethod } = body;
+    const { items, couponCode, guest, paymentMethod } = body;
 
-    if (!items || items.length === 0) {
-      return new Response(JSON.stringify({ error: "Shopping cart is empty." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // 3. Validate required guest fields
+    if (!guest?.guestName || !guest?.guestPhone || !guest?.tableNumber) {
+      return new Response(
+        JSON.stringify({ error: "Name, phone, and table number are required." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // 3. Fetch menu items matching payload ids to validate stock and prices
+    if (!items || items.length === 0) {
+      return new Response(
+        JSON.stringify({ error: "Shopping cart is empty." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 4. Fetch and validate menu items with true DB pricing
     const itemIds = items.map((it) => it.menuItemId);
-    const { data: menuDbItems, error: menuErr } = await supabaseClient
+    const { data: menuDbItems, error: menuErr } = await serviceClient
       .from("menu_items")
       .select("id, name, price, stock")
       .in("id", itemIds);
 
     if (menuErr || !menuDbItems || menuDbItems.length !== items.length) {
-      return new Response(JSON.stringify({ error: "One or more items in the cart are invalid." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ error: "One or more items in the cart are invalid." }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
-    // 4. Validate stock availability & rebuild order items with true database pricing
+    // 5. Validate stock and compute subtotal from DB prices (never trust frontend)
     const verifiedItems = [];
     let subtotal = 0;
-    
+
     for (const inputItem of items) {
       const dbItem = menuDbItems.find((d: any) => d.id === inputItem.menuItemId);
-      if (!dbItem) {
-        throw new Error(`Item ${inputItem.menuItemId} not found.`);
-      }
+      if (!dbItem) throw new Error(`Item ${inputItem.menuItemId} not found.`);
 
       if (dbItem.stock < inputItem.quantity) {
         return new Response(
-          JSON.stringify({ error: `Insufficient stock for: ${dbItem.name}. Only ${dbItem.stock} items remaining.` }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
+          JSON.stringify({ error: `Insufficient stock for: ${dbItem.name}. Only ${dbItem.stock} remaining.` }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
         );
       }
 
@@ -111,10 +108,10 @@ serve(async (req) => {
       });
     }
 
-    // 5. Verify coupon code
+    // 6. Verify coupon code (optional)
     let discount = 0;
     if (couponCode) {
-      const { data: couponData } = await supabaseClient
+      const { data: couponData } = await serviceClient
         .from("coupons")
         .select("*")
         .eq("code", couponCode.trim().toUpperCase())
@@ -124,43 +121,42 @@ serve(async (req) => {
 
       if (couponData && subtotal >= Number(couponData.min_order_value)) {
         const val = Number(couponData.value);
-        if (couponData.discount_type === "percentage") {
-          discount = (subtotal * val) / 100;
-        } else {
-          discount = val;
-        }
+        discount = couponData.discount_type === "percentage"
+          ? (subtotal * val) / 100
+          : val;
       }
     }
 
-    // 6. GST and Delivery Calculations
+    // 7. GST and total calculations (server-side, never trusted from frontend)
     const taxableAmount = Math.max(0, subtotal - discount);
-    const gst = taxableAmount * 0.05; // 5% GST rate
-    const deliveryCharge = subtotal === 0 || taxableAmount >= 500 ? 0 : 50; // Free delivery over 500
+    const gst = taxableAmount * 0.05; // 5% GST
+    const deliveryCharge = 0; // Dine-in: no delivery charge
     const total = taxableAmount + gst + deliveryCharge;
 
-    // 7. Insert Parent Order transaction
-    const { data: orderData, error: orderError } = await supabaseClient
+    // 8. Insert parent order
+    const { data: orderData, error: orderError } = await serviceClient
       .from("orders")
       .insert({
-        user_id: user.id,
+        user_id: userId, // null for guests
+        guest_name: guest.guestName,
+        guest_phone: guest.guestPhone,
+        table_number: guest.tableNumber,
         order_status: "received",
         subtotal,
         discount,
         gst,
         delivery_charge: deliveryCharge,
         total,
-        delivery_address: deliveryAddress,
+        delivery_address: { notes: guest.notes || "" },
         payment_method: paymentMethod,
-        payment_status: paymentMethod === "cod" ? "pending" : "paid",
+        payment_status: paymentMethod === "counter" ? "pending" : "pending",
       })
       .select()
       .single();
 
-    if (orderError) {
-      throw orderError;
-    }
+    if (orderError) throw orderError;
 
-    // 8. Insert Order items and decrement stock values
+    // 9. Insert order items
     const itemsToInsert = verifiedItems.map((it) => ({
       order_id: orderData.id,
       menu_item_id: it.menuItemId,
@@ -169,30 +165,23 @@ serve(async (req) => {
       price: it.price,
     }));
 
-    const { error: itemsError } = await supabaseClient
+    const { error: itemsError } = await serviceClient
       .from("order_items")
       .insert(itemsToInsert);
 
     if (itemsError) {
-      // rollback order insert
-      await supabaseClient.from("orders").delete().eq("id", orderData.id);
+      await serviceClient.from("orders").delete().eq("id", orderData.id);
       throw itemsError;
     }
 
-    // 9. Decrement stock on menu items
+    // 10. Decrement stock
     for (const it of verifiedItems) {
       const dbItem = menuDbItems.find((d: any) => d.id === it.menuItemId);
-      await supabaseClient
+      await serviceClient
         .from("menu_items")
         .update({ stock: dbItem.stock - it.quantity })
         .eq("id", it.menuItemId);
     }
-
-    // Clear user's cart in database
-    await supabaseClient
-      .from("cart_items")
-      .delete()
-      .eq("user_id", user.id);
 
     return new Response(
       JSON.stringify({
@@ -204,15 +193,13 @@ serve(async (req) => {
         deliveryCharge,
         total,
       }),
-      {
-        status: 201,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
+      { status: 201, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
+
   } catch (err: any) {
-    return new Response(JSON.stringify({ error: err.message || "Internal server error" }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ error: err.message || "Internal server error" }),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   }
 });

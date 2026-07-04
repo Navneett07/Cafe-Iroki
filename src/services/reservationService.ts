@@ -4,12 +4,12 @@ import type { Reservation } from '../types';
 const mapDbResToReservation = (db: any): Reservation => ({
   id: db.id,
   guestName: db.guest_name,
-  email: db.email,
   phone: db.phone,
   date: db.date,
   time: db.time,
   guests: db.guests,
   location: db.location as 'indoor' | 'outdoor' | 'balcony',
+  tableNumber: db.table_number || undefined,
   specialRequests: db.special_requests || '',
   status: db.status as 'pending' | 'confirmed' | 'cancelled',
 });
@@ -35,8 +35,18 @@ export const reservationService = {
 
   /**
    * Creates a new table reservation invoking reservations Supabase Edge Function.
+   * Works for both guest (unauthenticated) and logged-in users.
    */
-  async createReservation(input: Omit<Reservation, 'id' | 'status'>): Promise<Reservation> {
+  async createReservation(input: {
+    guestName: string;
+    phone: string;
+    date: string;
+    time: string;
+    guests: number;
+    location: 'indoor' | 'outdoor' | 'balcony';
+    tableNumber?: string;
+    specialRequests?: string;
+  }): Promise<Reservation> {
     const { data, error } = await supabase.functions.invoke('reservations', {
       body: {
         action: 'create',

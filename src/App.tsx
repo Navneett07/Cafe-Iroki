@@ -113,9 +113,11 @@ export const App: React.FC = () => {
                       <Route path="/forbidden" element={<Forbidden />} />
                       <Route path="/session-expired" element={<SessionExpired />} />
 
-                      {/* Protected Customer Routes */}
-                      <Route path="/reserve" element={<ProtectedRoute allowedRoles={['customer', 'admin']}><Reserve /></ProtectedRoute>} />
-                      <Route path="/checkout" element={<ProtectedRoute allowedRoles={['customer', 'admin']}><Checkout /></ProtectedRoute>} />
+                      {/* Public customer routes — no login required */}
+                      <Route path="/reserve" element={<Reserve />} />
+                      <Route path="/checkout" element={<Checkout />} />
+
+                      {/* Protected auth-only routes */}
                       <Route path="/profile" element={<ProtectedRoute allowedRoles={['customer', 'admin']}><Profile /></ProtectedRoute>} />
 
                       <Route path="*" element={<Home />} />

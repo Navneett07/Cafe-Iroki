@@ -17,7 +17,6 @@ const phoneRegex = /^[6-9]\d{9}$/;
 
 const reservationSchema = z.object({
   guestName: z.string().min(2, 'Name must be at least 2 characters.'),
-  email: z.string().email('Please enter a valid email address.'),
   phone: z.string().regex(phoneRegex, 'Enter a valid 10-digit mobile number (e.g. 9876543210).'),
   date: z.string().min(1, 'Please select a date.'),
   time: z.string().min(1, 'Please select a time slot.'),
@@ -86,13 +85,13 @@ export const Reserve: React.FC = () => {
     try {
       const res = await reservationService.createReservation({
         guestName: data.guestName,
-        email: data.email,
         phone: data.phone,
         date: data.date,
         time: data.time,
         guests: data.guests,
         location: data.location,
-        specialRequests: `${data.specialRequests || ''} [Table Pick: ${selectedTable}]`,
+        tableNumber: selectedTable,
+        specialRequests: data.specialRequests || '',
       });
 
       // Seeding success receipt & trigger party confetti
@@ -146,23 +145,15 @@ export const Reserve: React.FC = () => {
                 </h3>
 
                 <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                  <Input
-                    label="Guest Name"
-                    placeholder="Enter your full name"
-                    error={errors.guestName?.message ? String(errors.guestName.message) : undefined}
-                    {...register('guestName')}
-                  />
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <Input
-                      label="Email Address"
-                      type="email"
-                      placeholder="name@example.com"
-                      error={errors.email?.message ? String(errors.email.message) : undefined}
-                      {...register('email')}
+                      label="Your Name"
+                      placeholder="e.g. Priya Sharma"
+                      error={errors.guestName?.message ? String(errors.guestName.message) : undefined}
+                      {...register('guestName')}
                     />
                     <Input
-                      label="Phone Number"
+                      label="Mobile Number"
                       type="tel"
                       placeholder="e.g. 9876543210"
                       error={errors.phone?.message ? String(errors.phone.message) : undefined}
